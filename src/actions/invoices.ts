@@ -78,8 +78,56 @@ export async function getInvoiceById(id: string) {
   };
 }
 
+async function resolveCustomer(supabase: any, data: InvoiceSchemaType) {
+  if (data.customer_id) return data.customer_id;
+
+  let existingCustomerId = null;
+
+  // 1. Check if GST exists
+  if (data.customer_gst && data.customer_gst.trim() !== "") {
+    const { data: gstCustomer } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("gst_number", data.customer_gst.trim())
+      .single();
+
+    if (gstCustomer) {
+      existingCustomerId = gstCustomer.id;
+    }
+  }
+
+  // If existing customer found by GST, return it
+  if (existingCustomerId) {
+    return existingCustomerId;
+  }
+
+  // 2. If not found, add that customer
+  if (data.customer_name && data.customer_name.trim() !== "") {
+    const { data: newCustomer, error: newCustomerError } = await supabase
+      .from("customers")
+      .insert([{
+        name: data.customer_name.trim(),
+        mobile: data.customer_mobile?.trim() || null,
+        email: data.customer_email?.trim() || null,
+        gst_number: data.customer_gst?.trim() || null,
+        address: data.customer_address?.trim() || null,
+      }])
+      .select()
+      .single();
+
+    if (!newCustomerError && newCustomer) {
+      return newCustomer.id;
+    }
+  }
+
+  return null;
+}
+
 export async function createInvoice(data: InvoiceSchemaType) {
   const supabase = await createClient();
+
+  // Resolve customer (check GST or create new)
+  data.customer_id = await resolveCustomer(supabase, data) || data.customer_id;
 
   // 1. Generate invoice number
   const { data: numData, error: numError } = await supabase
@@ -187,6 +235,9 @@ export async function duplicateInvoice(id: string) {
 
 export async function updateInvoice(id: string, data: InvoiceSchemaType) {
   const supabase = await createClient();
+
+  // Resolve customer (check GST or create new)
+  data.customer_id = await resolveCustomer(supabase, data) || data.customer_id;
 
   const invoice = await getInvoiceById(id);
   const subtotal = data.items.reduce((sum, item) => sum + item.amount, 0);
