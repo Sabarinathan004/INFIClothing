@@ -9,8 +9,8 @@ export default async function BundlesPage() {
   return (
     <div>
       <PageHeader
-        title="Bundle Master"
-        description="Manage predefined bundles and default prices for faster invoicing."
+        title="Product Store"
+        description="Manage predefined products and default prices for faster invoicing."
         action={<AddBundleDialog />}
       />
       

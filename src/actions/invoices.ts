@@ -78,39 +78,67 @@ export async function getInvoiceById(id: string) {
   };
 }
 
+/**
+ * Compute GST split based on customer location.
+ * Always uses the gst_rate from the form (default 5%).
+ */
+function computeGstSplit(subtotal: number, gstRate: number, customerLocation: string) {
+  let cgstRate = 0, sgstRate = 0, igstRate = 0;
+  let cgstAmount = 0, sgstAmount = 0, igstAmount = 0;
+
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  if (customerLocation === 'Inside Tamil Nadu') {
+    cgstRate = gstRate / 2;
+    sgstRate = gstRate / 2;
+    cgstAmount = round2(subtotal * cgstRate / 100);
+    sgstAmount = round2(subtotal * sgstRate / 100);
+  } else {
+    igstRate = gstRate;
+    igstAmount = round2(subtotal * igstRate / 100);
+  }
+
+  const gstAmount = round2(cgstAmount + sgstAmount + igstAmount);
+
+  return { cgstRate, sgstRate, igstRate, cgstAmount, sgstAmount, igstAmount, gstAmount };
+}
+
+/**
+ * Resolve or create a customer record.
+ * - If customer_id is already provided, use it.
+ * - If verification_type === GST, try to find existing customer by verification_number.
+ * - Otherwise create a new customer record from the snapshot fields.
+ */
 async function resolveCustomer(supabase: any, data: InvoiceSchemaType) {
   if (data.customer_id) return data.customer_id;
 
-  let existingCustomerId = null;
-
-  // 1. Check if GST exists
-  if (data.customer_gst && data.customer_gst.trim() !== "") {
-    const { data: gstCustomer } = await supabase
+  // Only attempt GST-based lookup for GST verification type
+  if (data.verification_type === 'GST' && data.verification_number?.trim()) {
+    const { data: existingCustomer } = await supabase
       .from("customers")
       .select("id")
-      .eq("gst_number", data.customer_gst.trim())
+      .eq("verification_number", data.verification_number.trim().toUpperCase())
       .single();
 
-    if (gstCustomer) {
-      existingCustomerId = gstCustomer.id;
+    if (existingCustomer) {
+      return existingCustomer.id;
     }
   }
 
-  // If existing customer found by GST, return it
-  if (existingCustomerId) {
-    return existingCustomerId;
-  }
-
-  // 2. If not found, add that customer
-  if (data.customer_name && data.customer_name.trim() !== "") {
+  // Create a new customer record from the invoice snapshot
+  if (data.customer_name?.trim()) {
     const { data: newCustomer, error: newCustomerError } = await supabase
       .from("customers")
       .insert([{
         name: data.customer_name.trim(),
         mobile: data.customer_mobile?.trim() || null,
         email: data.customer_email?.trim() || null,
-        gst_number: data.customer_gst?.trim() || null,
         address: data.customer_address?.trim() || null,
+        verification_type: data.verification_type || null,
+        verification_number: data.verification_number?.trim().toUpperCase() || null,
+        gst_number: data.verification_type === 'GST'
+          ? data.verification_number?.trim().toUpperCase() || null
+          : null,
       }])
       .select()
       .single();
@@ -123,11 +151,38 @@ async function resolveCustomer(supabase: any, data: InvoiceSchemaType) {
   return null;
 }
 
+/**
+ * Auto-saves any manually typed products to the Product Store (bundles table).
+ */
+async function resolveProducts(supabase: any, items: any[]) {
+  for (const item of items) {
+    if (item.bundle_name?.trim()) {
+      const { data: existingBundles } = await supabase
+        .from("bundles")
+        .select("id")
+        .ilike("name", item.bundle_name.trim())
+        .limit(1);
+        
+      if (!existingBundles || existingBundles.length === 0) {
+        await supabase.from("bundles").insert([{
+          name: item.bundle_name.trim(),
+          hsn_code: item.hsn_code || "",
+          default_price: item.rate,
+          is_active: true
+        }]);
+      }
+    }
+  }
+}
+
 export async function createInvoice(data: InvoiceSchemaType) {
   const supabase = await createClient();
 
-  // Resolve customer (check GST or create new)
+  // Resolve customer (check verification_number for GST, or create new)
   data.customer_id = await resolveCustomer(supabase, data) || data.customer_id;
+
+  // Auto-save new products
+  await resolveProducts(supabase, data.items);
 
   // 1. Generate invoice number
   const { data: numData, error: numError } = await supabase
@@ -140,36 +195,60 @@ export async function createInvoice(data: InvoiceSchemaType) {
 
   const invoiceNumber = numData;
 
-  // 2. Calculate totals
+  // 2. Calculate totals with GST split
   const subtotal = data.items.reduce((sum, item) => sum + item.amount, 0);
-  const gstAmount = Math.round((subtotal * data.gst_rate) / 100 * 100) / 100;
+  const { cgstRate, sgstRate, igstRate, cgstAmount, sgstAmount, igstAmount, gstAmount } =
+    computeGstSplit(subtotal, data.gst_rate, data.customer_location);
   const grandTotal = subtotal + gstAmount;
-  
-  // Set initial status to unpaid unless explicitly marked as draft
-  const paymentStatus = data.status === 'draft' ? 'draft' : 'unpaid';
-  const invoiceStatus = data.status === 'draft' ? 'created' : 'created';
 
-  // 3. Insert invoice
+  const paymentStatus = data.status === 'draft' ? 'draft' : 'unpaid';
+  const invoiceStatus = 'created';
+
+  // 3. Insert invoice with all snapshot and split fields
   const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
     .insert([{
       invoice_number: invoiceNumber,
       invoice_date: data.invoice_date,
       customer_id: data.customer_id,
+
+      // Customer snapshot
       customer_name: data.customer_name,
       customer_mobile: data.customer_mobile,
       customer_email: data.customer_email,
-      customer_gst: data.customer_gst,
       customer_address: data.customer_address,
+      // Legacy field — keep in sync
+      customer_gst: data.verification_type === 'GST'
+        ? data.verification_number?.trim().toUpperCase() || ''
+        : '',
+
+      // Verification snapshot
+      verification_type: data.verification_type || null,
+      verification_number: data.verification_number?.trim().toUpperCase() || null,
+
+      // Location
+      customer_location: data.customer_location,
+
+      // Totals
       subtotal,
       gst_rate: data.gst_rate,
       gst_amount: gstAmount,
+      cgst_rate: cgstRate,
+      sgst_rate: sgstRate,
+      igst_rate: igstRate,
+      cgst_amount: cgstAmount,
+      sgst_amount: sgstAmount,
+      igst_amount: igstAmount,
       grand_total: grandTotal,
+
       paid_amount: 0,
       balance_amount: grandTotal,
       payment_status: paymentStatus,
       status: invoiceStatus,
       notes: data.notes,
+      transport_mode: data.transport_mode || null,
+      shipping_address: data.shipping_address || null,
+      no_of_bundles: data.no_of_bundles ? Number(data.no_of_bundles) : null,
     }])
     .select()
     .single();
@@ -179,10 +258,11 @@ export async function createInvoice(data: InvoiceSchemaType) {
     throw new Error(invoiceError.message);
   }
 
-  // 4. Insert items
+  // 4. Insert items (bundle snapshots)
   const itemsToInsert = data.items.map((item, index) => ({
     invoice_id: invoice.id,
     bundle_name: item.bundle_name,
+    hsn_code: item.hsn_code || "",
     quantity: item.quantity,
     rate: item.rate,
     amount: item.amount,
@@ -195,7 +275,6 @@ export async function createInvoice(data: InvoiceSchemaType) {
 
   if (itemsError) {
     console.error("Error creating invoice items:", itemsError);
-    // Might want to rollback here, or handle orphaned invoices
     throw new Error("Failed to save invoice items");
   }
 
@@ -217,13 +296,19 @@ export async function duplicateInvoice(id: string) {
     customer_name: invoice.customer_name,
     customer_mobile: invoice.customer_mobile,
     customer_email: invoice.customer_email,
-    customer_gst: invoice.customer_gst,
     customer_address: invoice.customer_address,
+    verification_type: invoice.verification_type || 'GST',
+    verification_number: invoice.verification_number || '',
+    customer_location: invoice.customer_location || 'Inside Tamil Nadu',
     gst_rate: invoice.gst_rate,
     notes: invoice.notes,
     status: 'unpaid',
+    transport_mode: invoice.transport_mode || '',
+    shipping_address: invoice.shipping_address || '',
+    no_of_bundles: invoice.no_of_bundles || '',
     items: invoice.items.map((item: any) => ({
       bundle_name: item.bundle_name,
+      hsn_code: item.hsn_code || "",
       quantity: item.quantity,
       rate: item.rate,
       amount: item.amount,
@@ -236,12 +321,16 @@ export async function duplicateInvoice(id: string) {
 export async function updateInvoice(id: string, data: InvoiceSchemaType) {
   const supabase = await createClient();
 
-  // Resolve customer (check GST or create new)
+  // Resolve customer (check verification_number for GST, or create new)
   data.customer_id = await resolveCustomer(supabase, data) || data.customer_id;
+
+  // Auto-save new products
+  await resolveProducts(supabase, data.items);
 
   const invoice = await getInvoiceById(id);
   const subtotal = data.items.reduce((sum, item) => sum + item.amount, 0);
-  const gstAmount = Math.round((subtotal * data.gst_rate) / 100 * 100) / 100;
+  const { cgstRate, sgstRate, igstRate, cgstAmount, sgstAmount, igstAmount, gstAmount } =
+    computeGstSplit(subtotal, data.gst_rate, data.customer_location);
   const grandTotal = subtotal + gstAmount;
 
   const balanceAmount = grandTotal - invoice.paid_amount;
@@ -261,19 +350,41 @@ export async function updateInvoice(id: string, data: InvoiceSchemaType) {
     .update({
       invoice_date: data.invoice_date,
       customer_id: data.customer_id,
+
+      // Customer snapshot
       customer_name: data.customer_name,
       customer_mobile: data.customer_mobile,
       customer_email: data.customer_email,
-      customer_gst: data.customer_gst,
       customer_address: data.customer_address,
+      customer_gst: data.verification_type === 'GST'
+        ? data.verification_number?.trim().toUpperCase() || ''
+        : '',
+
+      // Verification snapshot
+      verification_type: data.verification_type || null,
+      verification_number: data.verification_number?.trim().toUpperCase() || null,
+
+      // Location
+      customer_location: data.customer_location,
+
+      // Totals
       subtotal,
       gst_rate: data.gst_rate,
       gst_amount: gstAmount,
+      cgst_rate: cgstRate,
+      sgst_rate: sgstRate,
+      igst_rate: igstRate,
+      cgst_amount: cgstAmount,
+      sgst_amount: sgstAmount,
+      igst_amount: igstAmount,
       grand_total: grandTotal,
       balance_amount: balanceAmount,
       payment_status: paymentStatus,
       status: invoiceStatus,
       notes: data.notes,
+      transport_mode: data.transport_mode || null,
+      shipping_address: data.shipping_address || null,
+      no_of_bundles: data.no_of_bundles ? Number(data.no_of_bundles) : null,
     })
     .eq("id", id);
 
@@ -284,6 +395,7 @@ export async function updateInvoice(id: string, data: InvoiceSchemaType) {
   const itemsToInsert = data.items.map((item, index) => ({
     invoice_id: id,
     bundle_name: item.bundle_name,
+    hsn_code: item.hsn_code || "",
     quantity: item.quantity,
     rate: item.rate,
     amount: item.amount,

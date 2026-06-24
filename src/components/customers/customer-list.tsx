@@ -135,7 +135,7 @@ export function CustomerList({ initialCustomers }: CustomerListProps) {
       </div>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px]" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Edit Customer</DialogTitle>
             <DialogDescription>
@@ -156,7 +156,7 @@ export function CustomerList({ initialCustomers }: CustomerListProps) {
       </Dialog>
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px]" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Delete Customer</DialogTitle>
             <DialogDescription>

@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 export const bundleSchema = z.object({
-  name: z.string().min(1, 'Bundle name is required').max(200),
+  name: z.string().min(1, 'Product name is required').max(200),
+  hsn_code: z.string().max(50, 'HSN code max 50 chars').default(''),
   default_price: z.coerce
     .number()
     .min(0, 'Price must be positive')

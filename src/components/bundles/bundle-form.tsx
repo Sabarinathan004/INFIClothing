@@ -30,6 +30,7 @@ export function BundleForm({ bundle, onSuccess, onCancel }: BundleFormProps) {
     resolver: zodResolver(bundleSchema) as any,
     defaultValues: {
       name: bundle?.name || "",
+      hsn_code: bundle?.hsn_code || "",
       default_price: bundle?.default_price || 0,
       is_active: bundle?.is_active ?? true,
     },
@@ -41,10 +42,10 @@ export function BundleForm({ bundle, onSuccess, onCancel }: BundleFormProps) {
     try {
       if (isEditing && bundle) {
         await updateBundle(bundle.id, data);
-        toast.success("Bundle updated successfully");
+        toast.success("Product updated successfully");
       } else {
         await createBundle(data);
-        toast.success("Bundle created successfully");
+        toast.success("Product created successfully");
       }
       onSuccess();
     } catch (error: any) {
@@ -57,14 +58,25 @@ export function BundleForm({ bundle, onSuccess, onCancel }: BundleFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="name">Bundle Name <span className="text-destructive">*</span></Label>
+        <Label htmlFor="name">Product Name <span className="text-destructive">*</span></Label>
         <Input
           id="name"
-          placeholder="e.g. Mixed Kids Wear Bundle"
+          placeholder="e.g. Mixed Kids Wear"
           {...register("name")}
           disabled={isLoading}
         />
         {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="hsn_code">HSN Code</Label>
+        <Input
+          id="hsn_code"
+          placeholder="e.g. 6111"
+          {...register("hsn_code")}
+          disabled={isLoading}
+        />
+        {errors.hsn_code && <p className="text-sm text-destructive">{errors.hsn_code.message}</p>}
       </div>
 
       <div className="space-y-2">
@@ -96,7 +108,7 @@ export function BundleForm({ bundle, onSuccess, onCancel }: BundleFormProps) {
           Cancel
         </Button>
         <Button type="submit" disabled={isLoading}>
-          {isLoading ? "Saving..." : "Save Bundle"}
+          {isLoading ? "Saving..." : "Save Product"}
         </Button>
       </DialogFooter>
     </form>

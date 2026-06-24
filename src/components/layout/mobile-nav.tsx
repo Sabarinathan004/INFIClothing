@@ -2,14 +2,15 @@
 
 import { NAV_ITEMS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Plus, FileText, Users, Package, Settings, Menu, LogOut } from "lucide-react";
+import { LayoutDashboard, Plus, FileText, Users, Package, Settings, Menu, LogOut, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { ThemeToggle } from "./theme-toggle";
+import { updateSettings } from "@/actions/settings";
 
 const iconMap = {
   LayoutDashboard,
@@ -26,6 +27,29 @@ export function MobileNav() {
   const router = useRouter();
   const supabase = createClient();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const result = reader.result as string;
+        setLogoUrl(result);
+        localStorage.setItem("app_logo", result);
+        try {
+          await updateSettings({ logo_url: result });
+        } catch (error) {
+          console.error("Failed to update logo in database:", error);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const triggerLogoUpload = () => {
+    fileInputRef.current?.click();
+  };
 
   useEffect(() => {
     const savedLogo = localStorage.getItem("app_logo");
@@ -103,7 +127,17 @@ export function MobileNav() {
                   );
                 })}
               </nav>
-              <div className="pt-6 border-t border-border/50">
+              <div className="pt-6 border-t border-border/50 space-y-2">
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    triggerLogoUpload();
+                  }}
+                  className="flex w-full items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:hover:bg-accent dark:hover:text-accent-foreground transition-colors"
+                >
+                  <ImageIcon className="w-5 h-5" />
+                  Change Logo
+                </button>
                 <button
                   onClick={handleLogout}
                   className="flex w-full items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors"
@@ -116,6 +150,13 @@ export function MobileNav() {
           </SheetContent>
         </Sheet>
       </div>
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleLogoUpload} 
+        accept="image/*" 
+        className="hidden" 
+      />
     </div>
   );
 }

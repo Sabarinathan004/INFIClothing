@@ -16,14 +16,14 @@ export function AddBundleDialog() {
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
-          Add Bundle
+          Add Product
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Bundle</DialogTitle>
+          <DialogTitle>Add New Product</DialogTitle>
           <DialogDescription>
-            Create a predefined bundle for faster invoicing.
+            Create a predefined product for faster invoicing.
           </DialogDescription>
         </DialogHeader>
         <BundleForm 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { customerSchema, CustomerSchemaType } from "@/schemas/customer";
 import { Customer } from "@/types";
@@ -11,6 +11,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DialogFooter } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const VERIFICATION_PLACEHOLDERS: Record<string, string> = {
+  GST: "33ABCDE1234F1Z5",
+  Aadhar: "123412341234",
+  PAN: "ABCDE1234F",
+};
 
 interface CustomerFormProps {
   customer?: Customer;
@@ -24,7 +37,9 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
 
   const {
     register,
+    control,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<CustomerSchemaType>({
     resolver: zodResolver(customerSchema) as any,
@@ -32,10 +47,13 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
       name: customer?.name || "",
       mobile: customer?.mobile || "",
       email: customer?.email || "",
-      gst_number: customer?.gst_number || "",
       address: customer?.address || "",
+      verification_type: customer?.verification_type || undefined,
+      verification_number: customer?.verification_number || "",
     },
   });
+
+  const watchVerificationType = watch("verification_type");
 
   const onSubmit = async (data: CustomerSchemaType) => {
     setIsLoading(true);
@@ -80,30 +98,73 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
           />
           {errors.mobile && <p className="text-sm text-destructive">{errors.mobile.message}</p>}
         </div>
-        
+
         <div className="space-y-2">
-          <Label htmlFor="gst_number">GST Number</Label>
+          <Label htmlFor="email">Email Address</Label>
           <Input
-            id="gst_number"
-            placeholder="29ABCDE1234F2Z5"
-            className="uppercase"
-            {...register("gst_number")}
+            id="email"
+            type="email"
+            placeholder="contact@rajtextiles.com"
+            {...register("email")}
             disabled={isLoading}
           />
-          {errors.gst_number && <p className="text-sm text-destructive">{errors.gst_number.message}</p>}
+          {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="email">Email Address</Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="contact@rajtextiles.com"
-          {...register("email")}
-          disabled={isLoading}
-        />
-        {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+      {/* Verification Details */}
+      <div className="space-y-3 pt-2 border-t">
+        <p className="text-sm font-medium text-foreground">Verification Details</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="verification_type">
+              Verification Type <span className="text-destructive">*</span>
+            </Label>
+            <Controller
+              name="verification_type"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger id="verification_type" className={errors.verification_type ? "border-destructive" : ""}>
+                    <SelectValue placeholder="Select type..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GST">GST</SelectItem>
+                    <SelectItem value="Aadhar">Aadhar</SelectItem>
+                    <SelectItem value="PAN">PAN</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.verification_type && (
+              <p className="text-sm text-destructive">{errors.verification_type.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="verification_number">
+              Verification Number <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="verification_number"
+              placeholder={
+                watchVerificationType
+                  ? VERIFICATION_PLACEHOLDERS[watchVerificationType]
+                  : "Select type first..."
+              }
+              className={`uppercase ${errors.verification_number ? "border-destructive" : ""}`}
+              {...register("verification_number")}
+              disabled={isLoading || !watchVerificationType}
+            />
+            {errors.verification_number && (
+              <p className="text-sm text-destructive">{errors.verification_number.message}</p>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="space-y-2">

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { Check, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -79,7 +79,7 @@ export function CustomerAutocomplete({ value, onSelect, error }: CustomerAutocom
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput 
-            placeholder="Search by name, mobile, GST..." 
+            placeholder="Search by name, mobile, verification number..." 
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
@@ -109,7 +109,15 @@ export function CustomerAutocomplete({ value, onSelect, error }: CustomerAutocom
                   </div>
                   <div className="flex gap-3 text-xs text-muted-foreground">
                     {customer.mobile && <span>{customer.mobile}</span>}
-                    {customer.gst_number && <span className="uppercase">{customer.gst_number}</span>}
+                    {customer.verification_type && customer.verification_number && (
+                      <span className="uppercase">
+                        {customer.verification_type}: {customer.verification_number}
+                      </span>
+                    )}
+                    {/* Legacy fallback */}
+                    {!customer.verification_number && customer.gst_number && (
+                      <span className="uppercase">GST: {customer.gst_number}</span>
+                    )}
                   </div>
                 </CommandItem>
               ))}

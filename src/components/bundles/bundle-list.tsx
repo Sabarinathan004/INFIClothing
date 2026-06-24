@@ -86,7 +86,7 @@ export function BundleList({ initialBundles }: BundleListProps) {
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search bundles..."
+            placeholder="Search products..."
             className="pl-9"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -98,7 +98,8 @@ export function BundleList({ initialBundles }: BundleListProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Bundle Name</TableHead>
+              <TableHead>Product Name</TableHead>
+              <TableHead>HSN Code</TableHead>
               <TableHead className="text-right">Default Price</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -107,14 +108,15 @@ export function BundleList({ initialBundles }: BundleListProps) {
           <TableBody>
             {filteredBundles.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                  No bundles found.
+                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  No products found.
                 </TableCell>
               </TableRow>
             ) : (
               filteredBundles.map((bundle) => (
                 <TableRow key={bundle.id}>
                   <TableCell className="font-medium">{bundle.name}</TableCell>
+                  <TableCell>{bundle.hsn_code || '-'}</TableCell>
                   <TableCell className="text-right">{formatCurrency(bundle.default_price)}</TableCell>
                   <TableCell className="text-center">
                     <button onClick={() => handleToggleStatus(bundle)}>
@@ -143,9 +145,9 @@ export function BundleList({ initialBundles }: BundleListProps) {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Edit Bundle</DialogTitle>
+            <DialogTitle>Edit Product</DialogTitle>
             <DialogDescription>
-              Update bundle details.
+              Update product details.
             </DialogDescription>
           </DialogHeader>
           {selectedBundle && (
@@ -164,10 +166,10 @@ export function BundleList({ initialBundles }: BundleListProps) {
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Delete Bundle</DialogTitle>
+            <DialogTitle>Delete Product</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete {selectedBundle?.name}? 
-              This will not affect historical invoices that used this bundle.
+              This will not affect historical invoices that used this product.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-4">

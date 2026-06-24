@@ -47,3 +47,17 @@ export async function getDashboardStats() {
     recentInvoices: recentInvoices || []
   };
 }
+
+export async function getOutstandingInvoices() {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("invoices")
+    .select("id, invoice_number, customer_name, customer_mobile, grand_total, paid_amount, balance_amount, payment_status, invoice_date")
+    .in("payment_status", ["unpaid", "partial"])
+    .gt("balance_amount", 0)
+    .order("balance_amount", { ascending: false });
+
+  if (error) return [];
+  return data || [];
+}

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { Image as ImageIcon, Settings, LogOut } from "lucide-react";
+import { updateSettings } from "@/actions/settings";
 
 export function Topbar() {
   const [user, setUser] = useState<User | null>(null);
@@ -37,10 +38,15 @@ export function Topbar() {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const result = reader.result as string;
         setLogoUrl(result);
         localStorage.setItem("app_logo", result);
+        try {
+          await updateSettings({ logo_url: result });
+        } catch (error) {
+          console.error("Failed to update logo in database:", error);
+        }
       };
       reader.readAsDataURL(file);
     }

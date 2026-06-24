@@ -13,7 +13,10 @@ export async function getCustomers(query: string = "") {
     .order("created_at", { ascending: false });
 
   if (query) {
-    request = request.or(`name.ilike.%${query}%,mobile.ilike.%${query}%,gst_number.ilike.%${query}%`);
+    // Search by name, mobile, or verification_number (covers GST, Aadhaar, PAN)
+    request = request.or(
+      `name.ilike.%${query}%,mobile.ilike.%${query}%,verification_number.ilike.%${query}%`
+    );
   }
 
   const { data, error } = await request;
@@ -47,7 +50,18 @@ export async function createCustomer(data: CustomerSchemaType) {
 
   const { error } = await supabase
     .from("customers")
-    .insert([data]);
+    .insert([{
+      name: data.name,
+      mobile: data.mobile,
+      email: data.email,
+      address: data.address,
+      verification_type: data.verification_type,
+      verification_number: data.verification_number?.trim().toUpperCase() || null,
+      // Keep gst_number in sync for backward compatibility
+      gst_number: data.verification_type === 'GST'
+        ? data.verification_number?.trim().toUpperCase() || null
+        : null,
+    }]);
 
   if (error) {
     console.error("Error creating customer:", error);
@@ -63,7 +77,18 @@ export async function updateCustomer(id: string, data: CustomerSchemaType) {
 
   const { error } = await supabase
     .from("customers")
-    .update(data)
+    .update({
+      name: data.name,
+      mobile: data.mobile,
+      email: data.email,
+      address: data.address,
+      verification_type: data.verification_type,
+      verification_number: data.verification_number?.trim().toUpperCase() || null,
+      // Keep gst_number in sync for backward compatibility
+      gst_number: data.verification_type === 'GST'
+        ? data.verification_number?.trim().toUpperCase() || null
+        : null,
+    })
     .eq("id", id);
 
   if (error) {

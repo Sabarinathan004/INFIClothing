@@ -28,7 +28,7 @@ export const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
   { href: '/invoices/new', label: 'New Invoice', icon: 'Plus' },
   { href: '/invoices', label: 'Invoices', icon: 'FileText' },
-  { href: '/customers', label: 'Customers', icon: 'Users' },
-  { href: '/bundles', label: 'Bundles', icon: 'Package' },
-  { href: '/settings', label: 'Settings', icon: 'Settings' },
+  { label: 'Customers', href: '/customers', icon: 'Users' },
+  { label: 'Product Store', href: '/bundles', icon: 'Package' },
+  { label: 'Settings', href: '/settings', icon: 'Settings' },
 ] as const;

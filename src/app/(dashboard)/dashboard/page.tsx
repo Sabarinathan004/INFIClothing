@@ -8,6 +8,7 @@ import { Plus, IndianRupee, Users, FileText, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ErrorAlert } from "@/components/shared/error-alert";
+import { OutstandingBalanceCard } from "@/components/dashboard/outstanding-balance-card";
 
 export default async function DashboardPage() {
   const stats = await getDashboardStats();
@@ -56,20 +57,7 @@ export default async function DashboardPage() {
             </p>
           </CardContent>
         </Card>
-        <Card className="border-destructive/20 bg-destructive/5">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Outstanding Balance</CardTitle>
-            <FileText className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {formatCurrency(stats.totalOutstanding)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Amount pending collection
-            </p>
-          </CardContent>
-        </Card>
+        <OutstandingBalanceCard totalOutstanding={stats.totalOutstanding} />
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
