@@ -78,12 +78,12 @@ export function MobileNav() {
   };
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b bg-white dark:bg-card lg:hidden sticky top-0 z-40">
-        <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between px-4 pl-[max(env(safe-area-inset-left),1rem)] pr-[max(env(safe-area-inset-right),1rem)] pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 border-b bg-white dark:bg-card lg:hidden sticky top-0 z-40">
+        <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-md overflow-hidden bg-black flex-shrink-0">
             <img src={logoUrl || "/logo.png"} alt="INFI Clothings" className="w-full h-full object-cover" />
           </div>
-        <span className="font-bold text-lg text-foreground line-clamp-1">INFI Clothings</span>
+        <span className="font-bold text-lg text-foreground truncate">INFI Clothings</span>
       </div>
 
       <div className="flex items-center gap-2">
@@ -94,16 +94,16 @@ export function MobileNav() {
               <Menu className="w-6 h-6" />
             </button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[280px] p-0">
-            <SheetHeader className="p-6 text-left border-b border-border/50">
-              <SheetTitle className="flex items-center gap-3">
+          <SheetContent side="left" className="w-[280px] p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] flex flex-col">
+            <SheetHeader className="p-6 text-left border-b border-border/50 shrink-0">
+              <SheetTitle className="flex items-center gap-3 min-w-0">
                 <div className="w-8 h-8 rounded-md overflow-hidden bg-black flex-shrink-0">
                   <img src={logoUrl || "/logo.png"} alt="INFI Clothings" className="w-full h-full object-cover" />
                 </div>
-                <span className="font-bold text-xl line-clamp-1">INFI Clothings</span>
+                <span className="font-bold text-xl truncate">INFI Clothings</span>
               </SheetTitle>
             </SheetHeader>
-            <div className="flex flex-col justify-between h-[calc(100vh-89px)] p-4">
+            <div className="flex flex-col justify-between flex-1 overflow-y-auto p-4">
               <nav className="space-y-1.5">
                 {NAV_ITEMS.map((item) => {
                   const Icon = iconMap[item.icon as keyof typeof iconMap];

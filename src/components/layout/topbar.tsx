@@ -57,7 +57,7 @@ export function Topbar() {
   };
 
   return (
-    <header className="hidden lg:flex h-16 items-center justify-between border-b bg-white dark:bg-card px-6 sticky top-0 z-30">
+    <header className="hidden lg:flex h-16 items-center justify-between border-b bg-white dark:bg-card px-6 pl-[max(env(safe-area-inset-left),1.5rem)] pr-[max(env(safe-area-inset-right),1.5rem)] sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
       <div>
         <h2 className="text-lg font-semibold text-foreground">
           INFI Clothings
