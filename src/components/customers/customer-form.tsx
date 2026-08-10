@@ -27,7 +27,7 @@ const VERIFICATION_PLACEHOLDERS: Record<string, string> = {
 
 interface CustomerFormProps {
   customer?: Customer;
-  onSuccess: () => void;
+  onSuccess: (data?: any) => void;
   onCancel: () => void;
 }
 
@@ -60,13 +60,14 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
 
     try {
       if (isEditing && customer) {
-        await updateCustomer(customer.id, data);
+        const result = await updateCustomer(customer.id, data);
         toast.success("Customer updated successfully");
+        onSuccess(result.data);
       } else {
-        await createCustomer(data);
+        const result = await createCustomer(data);
         toast.success("Customer created successfully");
+        onSuccess(result.data);
       }
-      onSuccess();
     } catch (error: any) {
       toast.error(error.message || "Something went wrong");
     } finally {

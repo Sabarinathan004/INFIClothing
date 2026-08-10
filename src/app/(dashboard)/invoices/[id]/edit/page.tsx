@@ -18,8 +18,6 @@ export default async function EditInvoicePage({
     notFound();
   }
 
-  const bundles = await getBundles(true); // only active bundles
-  
   // Provide a fallback for settings if not yet configured
   let settings;
   try {
@@ -36,7 +34,6 @@ export default async function EditInvoicePage({
       />
 
       <InvoiceForm 
-        bundles={bundles} 
         defaultGstRate={settings?.default_gst_rate || 5}
         initialData={invoice}
         invoiceId={invoice.id}

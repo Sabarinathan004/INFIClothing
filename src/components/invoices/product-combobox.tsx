@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, ChevronDown, Plus } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Bundle } from "@/types";
@@ -19,9 +19,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { LucideIcon } from "lucide-react";
+import { searchBundles } from "@/actions/bundles";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface ProductComboboxProps {
-  bundles: Bundle[];
   value: string;
   onChange: (value: string) => void;
   onSelect: (bundle: Bundle) => void;
@@ -34,7 +35,6 @@ interface ProductComboboxProps {
 }
 
 export function ProductCombobox({
-  bundles,
   value,
   onChange,
   onSelect,
@@ -47,9 +47,34 @@ export function ProductCombobox({
 }: ProductComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [bundles, setBundles] = useState<Bundle[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const selectedBundle = bundles.find((b) => b.name === value);
+  const debouncedSearch = useDebounce(search, 250);
 
+  useEffect(() => {
+    async function fetchBundles() {
+      if (!debouncedSearch || debouncedSearch.length < 2) {
+        setBundles([]);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const data = await searchBundles(debouncedSearch);
+        setBundles(data as unknown as Bundle[]);
+      } catch (error) {
+        console.error("Failed to search bundles:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    if (open) {
+      fetchBundles();
+    }
+  }, [debouncedSearch, open]);
+
+  // If value is set but search results don't contain it, we still show the value in the trigger
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -74,7 +99,7 @@ export function ProductCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-        <Command>
+        <Command shouldFilter={false}>
           <CommandInput 
             placeholder="Search products..." 
             value={search}
@@ -82,8 +107,10 @@ export function ProductCombobox({
           />
           <CommandList>
             <CommandEmpty className="py-6 text-center text-sm">
-              <p className="text-muted-foreground mb-3">No products found.</p>
-              {search && (
+              <p className="text-muted-foreground mb-3">
+                {isLoading ? "Searching..." : "No products found."}
+              </p>
+              {search && !isLoading && (
                 <Button 
                   size="sm"
                   variant="secondary"
@@ -133,7 +160,7 @@ export function ProductCombobox({
                 </CommandItem>
               ))}
               
-              {search && !bundles.find(b => b.name.toLowerCase() === search.toLowerCase()) && (
+              {search && !isLoading && !bundles.find(b => b.name.toLowerCase() === search.toLowerCase()) && (
                 <CommandItem
                   value={search}
                   onSelect={() => {

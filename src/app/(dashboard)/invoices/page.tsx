@@ -4,10 +4,10 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export default async function InvoicesPage() {
-  const invoices = await getInvoices();
-
+export default function InvoicesPage() {
   return (
     <div>
       <PageHeader
@@ -23,7 +23,23 @@ export default async function InvoicesPage() {
         }
       />
       
-      <InvoiceList initialInvoices={invoices} />
+      <Suspense fallback={<InvoicesSkeleton />}>
+        <InvoicesContent />
+      </Suspense>
     </div>
   );
+}
+
+function InvoicesSkeleton() {
+  return (
+    <div className="space-y-4 mt-6">
+      <Skeleton className="h-10 w-full md:w-1/3" />
+      <Skeleton className="h-64 w-full rounded-md" />
+    </div>
+  );
+}
+
+async function InvoicesContent() {
+  const invoices = await getInvoices();
+  return <InvoiceList initialInvoices={invoices} />;
 }

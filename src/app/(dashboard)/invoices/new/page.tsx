@@ -4,8 +4,6 @@ import { InvoiceForm } from "@/components/invoices/invoice-form";
 import { PageHeader } from "@/components/shared/page-header";
 
 export default async function NewInvoicePage() {
-  const bundles = await getBundles(true); // only active bundles
-  
   // Provide a fallback for settings if not yet configured
   let settings;
   try {
@@ -22,7 +20,6 @@ export default async function NewInvoicePage() {
       />
 
       <InvoiceForm 
-        bundles={bundles} 
         defaultGstRate={settings?.default_gst_rate || 5} 
         settings={settings}
       />

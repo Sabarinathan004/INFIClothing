@@ -9,10 +9,10 @@ import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ErrorAlert } from "@/components/shared/error-alert";
 import { OutstandingBalanceCard } from "@/components/dashboard/outstanding-balance-card";
+import { Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export default async function DashboardPage() {
-  const stats = await getDashboardStats();
-
+export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
@@ -27,7 +27,42 @@ export default async function DashboardPage() {
           </Button>
         }
       />
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent />
+      </Suspense>
+    </div>
+  );
+}
 
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <Skeleton className="h-4 w-1/2" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-3/4 mb-1" />
+              <Skeleton className="h-3 w-1/2" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
+async function DashboardContent() {
+  const stats = await getDashboardStats();
+
+  return (
+    <>
       {stats.error && <ErrorAlert error={stats.error} />}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -151,6 +186,6 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,8 +1,10 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server";
+import { unstable_cache } from "next/cache";
 
-export async function getSettings() {
+// Wrap the actual DB call in a helper
+async function fetchSettingsFromDb() {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -16,6 +18,16 @@ export async function getSettings() {
 
   return data;
 }
+
+// Cache the settings for the session / 1 hour
+export const getSettings = unstable_cache(
+  async () => {
+    return fetchSettingsFromDb();
+  },
+  ['company_settings'],
+  { revalidate: 3600, tags: ['settings'] }
+);
+
 
 export async function updateSettings(data: any) {
   const supabase = await createClient();
@@ -43,6 +55,9 @@ export async function updateSettings(data: any) {
     console.error("Error updating settings:", error);
     throw new Error("Failed to update settings");
   }
+
+  const { revalidateTag } = await import("next/cache");
+  revalidateTag("settings", "max");
 
   return { success: true };
 }

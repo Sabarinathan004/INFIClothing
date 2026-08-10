@@ -14,7 +14,7 @@ import { DialogFooter } from "@/components/ui/dialog";
 
 interface BundleFormProps {
   bundle?: Bundle;
-  onSuccess: () => void;
+  onSuccess: (data?: any) => void;
   onCancel: () => void;
 }
 
@@ -41,13 +41,14 @@ export function BundleForm({ bundle, onSuccess, onCancel }: BundleFormProps) {
 
     try {
       if (isEditing && bundle) {
-        await updateBundle(bundle.id, data);
+        const result = await updateBundle(bundle.id, data);
         toast.success("Product updated successfully");
+        onSuccess(result.data);
       } else {
-        await createBundle(data);
+        const result = await createBundle(data);
         toast.success("Product created successfully");
+        onSuccess(result.data);
       }
-      onSuccess();
     } catch (error: any) {
       toast.error(error.message || "Something went wrong");
     } finally {

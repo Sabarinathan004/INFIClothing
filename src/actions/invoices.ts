@@ -50,31 +50,32 @@ export async function getInvoiceById(id: string) {
     throw new Error("Failed to fetch invoice details");
   }
 
-  const { data: items, error: itemsError } = await supabase
-    .from("invoice_items")
-    .select("*")
-    .eq("invoice_id", id)
-    .order("sort_order", { ascending: true });
+  const [itemsResponse, paymentsResponse] = await Promise.all([
+    supabase
+      .from("invoice_items")
+      .select("*")
+      .eq("invoice_id", id)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("payments")
+      .select("*")
+      .eq("invoice_id", id)
+      .order("payment_date", { ascending: false })
+  ]);
 
-  if (itemsError) {
-    console.error(`Error fetching invoice items for ${id}:`, itemsError);
+  if (itemsResponse.error) {
+    console.error(`Error fetching invoice items for ${id}:`, itemsResponse.error);
     throw new Error("Failed to fetch invoice items");
   }
 
-  const { data: payments, error: paymentsError } = await supabase
-    .from("payments")
-    .select("*")
-    .eq("invoice_id", id)
-    .order("payment_date", { ascending: false });
-
-  if (paymentsError) {
-    console.error(`Error fetching payments for invoice ${id}:`, paymentsError);
+  if (paymentsResponse.error) {
+    console.error(`Error fetching payments for invoice ${id}:`, paymentsResponse.error);
   }
 
   return {
     ...invoice,
-    items: items || [],
-    payments: payments || [],
+    items: itemsResponse.data || [],
+    payments: paymentsResponse.data || [],
   };
 }
 

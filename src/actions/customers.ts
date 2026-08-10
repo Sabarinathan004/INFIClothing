@@ -4,27 +4,44 @@ import { createClient } from "@/lib/supabase/server";
 import { CustomerSchemaType } from "@/schemas/customer";
 import { revalidatePath } from "next/cache";
 
-export async function getCustomers(query: string = "") {
+export async function getCustomers(query: string = "", page: number = 1, pageSize: number = 50) {
   const supabase = await createClient();
+
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
 
   let request = supabase
     .from("customers")
-    .select("*")
-    .order("created_at", { ascending: false });
+    .select("*", { count: 'exact' })
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
   if (query) {
-    // Search by name, mobile, or verification_number (covers GST, Aadhaar, PAN)
     request = request.or(
       `name.ilike.%${query}%,mobile.ilike.%${query}%,verification_number.ilike.%${query}%`
     );
   }
 
-  const { data, error } = await request;
+  const { data, count, error } = await request;
 
   if (error) {
-    return [];
+    return { data: [], count: 0 };
   }
 
+  return { data, count: count || 0 };
+}
+
+export async function searchCustomers(query: string) {
+  if (!query || query.length < 2) return [];
+  
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("id, name, mobile, email, address, verification_type, verification_number, gst_number")
+    .or(`name.ilike.%${query}%,mobile.ilike.%${query}%,verification_number.ilike.%${query}%`)
+    .limit(15);
+
+  if (error) return [];
   return data;
 }
 
@@ -48,7 +65,7 @@ export async function getCustomerById(id: string) {
 export async function createCustomer(data: CustomerSchemaType) {
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const { data: newCustomer, error } = await supabase
     .from("customers")
     .insert([{
       name: data.name,
@@ -61,7 +78,9 @@ export async function createCustomer(data: CustomerSchemaType) {
       gst_number: data.verification_type === 'GST'
         ? data.verification_number?.trim().toUpperCase() || null
         : null,
-    }]);
+    }])
+    .select()
+    .single();
 
   if (error) {
     console.error("Error creating customer:", error);
@@ -69,13 +88,13 @@ export async function createCustomer(data: CustomerSchemaType) {
   }
 
   revalidatePath("/customers");
-  return { success: true };
+  return { success: true, data: newCustomer };
 }
 
 export async function updateCustomer(id: string, data: CustomerSchemaType) {
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const { data: updatedCustomer, error } = await supabase
     .from("customers")
     .update({
       name: data.name,
@@ -89,7 +108,9 @@ export async function updateCustomer(id: string, data: CustomerSchemaType) {
         ? data.verification_number?.trim().toUpperCase() || null
         : null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .select()
+    .single();
 
   if (error) {
     console.error(`Error updating customer ${id}:`, error);
@@ -98,7 +119,7 @@ export async function updateCustomer(id: string, data: CustomerSchemaType) {
 
   revalidatePath("/customers");
   revalidatePath(`/customers/${id}`);
-  return { success: true };
+  return { success: true, data: updatedCustomer };
 }
 
 export async function deleteCustomer(id: string) {

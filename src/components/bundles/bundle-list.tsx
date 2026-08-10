@@ -153,8 +153,13 @@ export function BundleList({ initialBundles }: BundleListProps) {
           {selectedBundle && (
             <BundleForm
               bundle={selectedBundle}
-              onSuccess={() => {
+              onSuccess={(updatedBundle) => {
                 setIsEditOpen(false);
+                if (updatedBundle) {
+                  setBundles(prev => 
+                    prev.map(b => b.id === updatedBundle.id ? updatedBundle : b)
+                  );
+                }
                 router.refresh();
               }}
               onCancel={() => setIsEditOpen(false)}

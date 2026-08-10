@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react";
-import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useForm, useFieldArray, Controller, useWatch, Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { invoiceSchema, InvoiceSchemaType } from "@/schemas/invoice";
 import { Bundle, Customer } from "@/types";
@@ -18,7 +18,11 @@ import { Plus, Trash2, ReceiptText, Store, Pencil, Search } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toDateInputValue, formatCurrency } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { InvoiceDetailsView } from "@/components/invoices/invoice-details-view";
+import dynamic from "next/dynamic";
+const InvoiceDetailsView = dynamic(
+  () => import("@/components/invoices/invoice-details-view").then(mod => mod.InvoiceDetailsView),
+  { ssr: false, loading: () => <div className="p-8 text-center text-muted-foreground">Loading preview...</div> }
+);
 import { Eye, WifiOff } from "lucide-react";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { QtyInput } from "@/components/invoices/qty-input";
@@ -33,14 +37,13 @@ const VERIFICATION_PLACEHOLDERS: Record<string, string> = {
 const GST_RATE = 5; // Fixed at 5%
 
 interface InvoiceFormProps {
-  bundles: Bundle[];
   defaultGstRate: number;
   initialData?: any;
   invoiceId?: string;
   settings?: any;
 }
 
-export function InvoiceForm({ bundles, defaultGstRate, initialData, invoiceId, settings }: InvoiceFormProps) {
+export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }: InvoiceFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [productMode, setProductMode] = useState<'store' | 'manual'>('store');
   const router = useRouter();
@@ -99,64 +102,13 @@ export function InvoiceForm({ bundles, defaultGstRate, initialData, invoiceId, s
     },
   });
 
+  // We don't watch items at the root to prevent full form re-renders on every keystroke
   const { fields, append, remove } = useFieldArray({
     control,
     name: "items",
   });
 
-  const watchItems = watch("items");
-  const watchAll = watch();
   const watchVerificationType = watch("verification_type");
-  const watchCustomerLocation = watch("customer_location");
-
-  // Calculate totals
-  const subtotal = watchItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-
-  let cgstRate = 0, sgstRate = 0, igstRate = 0;
-  let cgstAmount = 0, sgstAmount = 0, igstAmount = 0;
-
-  if (watchCustomerLocation === "Inside Tamil Nadu") {
-    cgstRate = GST_RATE / 2;
-    sgstRate = GST_RATE / 2;
-    cgstAmount = Math.round(subtotal * cgstRate / 100 * 100) / 100;
-    sgstAmount = Math.round(subtotal * sgstRate / 100 * 100) / 100;
-  } else {
-    igstRate = GST_RATE;
-    igstAmount = Math.round(subtotal * igstRate / 100 * 100) / 100;
-  }
-
-  const gstAmount = cgstAmount + sgstAmount + igstAmount;
-  const grandTotal = subtotal + gstAmount;
-
-  const previewInvoiceData = {
-    invoice_number: initialData?.invoice_number || "PREVIEW",
-    invoice_date: watchAll.invoice_date,
-    customer_name: watchAll.customer_name || "Customer Name",
-    customer_mobile: watchAll.customer_mobile,
-    customer_email: watchAll.customer_email,
-    customer_address: watchAll.customer_address,
-    verification_type: watchAll.verification_type,
-    verification_number: watchAll.verification_number,
-    customer_location: watchAll.customer_location || "Inside Tamil Nadu",
-    items: watchAll.items,
-    subtotal,
-    gst_rate: GST_RATE,
-    gst_amount: gstAmount,
-    cgst_rate: cgstRate,
-    sgst_rate: sgstRate,
-    igst_rate: igstRate,
-    cgst_amount: cgstAmount,
-    sgst_amount: sgstAmount,
-    igst_amount: igstAmount,
-    grand_total: grandTotal,
-    paid_amount: initialData?.paid_amount || 0,
-    balance_amount: grandTotal - (initialData?.paid_amount || 0),
-    payment_status: watchAll.status,
-    notes: watchAll.notes,
-    transport_mode: watchAll.transport_mode,
-    shipping_address: watchAll.shipping_address,
-    no_of_bundles: watchAll.no_of_bundles
-  };
 
   const handleCustomerSelect = (customer: Customer | null) => {
     if (customer) {
@@ -187,18 +139,12 @@ export function InvoiceForm({ bundles, defaultGstRate, initialData, invoiceId, s
     }
   };
 
-  const handleProductInput = (index: number, productName: string) => {
-    const bundle = bundles.find(b => b.name === productName);
-    if (bundle) {
-      const quantity = Number(watchItems[index].quantity) || 1;
-      setValue(`items.${index}.hsn_code`, bundle.hsn_code || "", { shouldValidate: true });
-      setValue(`items.${index}.rate`, bundle.default_price, { shouldValidate: true });
-      setValue(`items.${index}.amount`, bundle.default_price * quantity, { shouldValidate: true });
-    }
-  };
+  const { getValues } = useForm<InvoiceSchemaType>(); // We actually get this from the destructured useForm above
 
   const handleBundleSelect = (index: number, bundle: Bundle) => {
-    const quantity = Number(watchItems[index].quantity) || 1;
+    // @ts-ignore
+    const items = control._formValues.items || [];
+    const quantity = Number(items[index]?.quantity) || 1;
     setValue(`items.${index}.bundle_name`, bundle.name, { shouldValidate: true });
     setValue(`items.${index}.hsn_code`, bundle.hsn_code || "", { shouldValidate: true });
     setValue(`items.${index}.rate`, bundle.default_price, { shouldValidate: true });
@@ -206,8 +152,10 @@ export function InvoiceForm({ bundles, defaultGstRate, initialData, invoiceId, s
   };
 
   const calculateAmount = (index: number) => {
-    const quantity = Number(watchItems[index].quantity) || 0;
-    const rate = Number(watchItems[index].rate) || 0;
+    // @ts-ignore
+    const items = control._formValues.items || [];
+    const quantity = Number(items[index]?.quantity) || 0;
+    const rate = Number(items[index]?.rate) || 0;
     setValue(`items.${index}.amount`, quantity * rate, { shouldValidate: true });
   };
 
@@ -467,7 +415,6 @@ export function InvoiceForm({ bundles, defaultGstRate, initialData, invoiceId, s
                               control={control}
                               render={({ field }) => (
                                 <ProductCombobox
-                                  bundles={bundles}
                                   value={field.value}
                                   onChange={field.onChange}
                                   onSelect={(bundle) => handleBundleSelect(index, bundle)}
@@ -550,16 +497,7 @@ export function InvoiceForm({ bundles, defaultGstRate, initialData, invoiceId, s
               </div>
 
               {/* Inner Totals Footer */}
-              <div className="mt-6 border border-slate-200 dark:border-slate-800 bg-[#f8f9fc] dark:bg-slate-900 rounded-lg p-4 px-6 flex justify-between items-center">
-                <div className="flex items-center gap-3 font-medium">
-                  <span className="text-slate-600 dark:text-slate-400">Total Items:</span>
-                  <span className="bg-[#e9e6ff] dark:bg-indigo-900/50 text-[#6039db] dark:text-indigo-400 px-3 py-1 rounded-md text-sm font-bold">{fields.length}</span>
-                </div>
-                <div className="flex items-center gap-3 font-medium">
-                  <span className="text-slate-600 dark:text-slate-400">Total Amount:</span>
-                  <span className="text-[#6039db] dark:text-indigo-400 text-xl font-bold tracking-tight">{formatCurrency(subtotal)}</span>
-                </div>
-              </div>
+              <InnerTotals control={control} fieldsLength={fields.length} />
               {errors.items && (
                 <p className="text-sm text-destructive mt-4 px-4 sm:px-0">Please ensure all item details are correct.</p>
               )}
@@ -569,94 +507,191 @@ export function InvoiceForm({ bundles, defaultGstRate, initialData, invoiceId, s
 
         {/* Right Column: Totals & Actions */}
         <div className="space-y-6">
-          <Card className="sticky top-24">
-            <CardHeader>
-              <CardTitle className="text-lg">Totals</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span className="font-medium">{formatCurrency(subtotal)}</span>
-              </div>
-              
-              {/* Dynamic GST split rows */}
-              <div className="space-y-2 pt-2 border-t">
-                {watchCustomerLocation === "Inside Tamil Nadu" ? (
-                  <>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">CGST ({cgstRate}%)</span>
-                      <span>{formatCurrency(cgstAmount)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">SGST ({sgstRate}%)</span>
-                      <span>{formatCurrency(sgstAmount)}</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">IGST ({igstRate}%)</span>
-                    <span>{formatCurrency(igstAmount)}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-between font-bold text-lg pt-4 border-t">
-                <span>Grand Total</span>
-                <span className="text-primary">{formatCurrency(grandTotal)}</span>
-              </div>
-              
-            </CardContent>
-            <CardFooter className="flex-col gap-3 pt-4 border-t bg-slate-50 dark:bg-card">
-              {!isOnline && (
-                <div className="w-full flex items-center justify-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-lg text-sm mb-2">
-                  <WifiOff className="w-4 h-4" />
-                  <span>Internet connection required to save invoices</span>
-                </div>
-              )}
-              <Button 
-                type="button" 
-                className="w-full text-base py-6"
-                onClick={handleSubmit((data) => onSubmit(data, 'unpaid'))}
-                disabled={isLoading || !isOnline}
-              >
-                {invoiceId ? "Update Invoice" : "Create Invoice"}
-              </Button>
-              <div className="flex w-full gap-3">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="flex-1"
-                  onClick={handleSubmit((data) => onSubmit(data, 'draft'))}
-                  disabled={isLoading || !isOnline}
-                >
-                  {invoiceId ? "Update Draft" : "Save as Draft"}
-                </Button>
-
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button type="button" variant="secondary" className="flex-1" disabled={isLoading}>
-                      <Eye className="w-4 h-4 mr-2" />
-                      Preview
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-[95vw] md:max-w-4xl max-h-[90vh] overflow-y-auto p-2 sm:p-6 bg-slate-50 dark:bg-slate-900 border-none shadow-xl">
-                    <InvoiceDetailsView invoice={previewInvoiceData} settings={settings} />
-                  </DialogContent>
-                </Dialog>
-              </div>
-              <Button 
-                type="button" 
-                variant="ghost" 
-                className="w-full text-muted-foreground"
-                onClick={() => router.push('/invoices')}
-                disabled={isLoading}
-              >
-                Cancel
-              </Button>
-            </CardFooter>
-          </Card>
+          <TotalsCard 
+            control={control} 
+            isLoading={isLoading} 
+            isOnline={isOnline}
+            invoiceId={invoiceId}
+            initialData={initialData}
+            settings={settings}
+            onSubmitDraft={handleSubmit((data) => onSubmit(data, 'draft'))}
+            onSubmitFinal={handleSubmit((data) => onSubmit(data, 'unpaid'))}
+          />
         </div>
       </div>
     </form>
+  );
+}
+
+// Subcomponents to isolate re-renders
+
+function InnerTotals({ control, fieldsLength }: { control: Control<InvoiceSchemaType>; fieldsLength: number }) {
+  const items = useWatch({ control, name: "items" }) || [];
+  const subtotal = items.reduce((sum, item) => sum + (Number(item?.amount) || 0), 0);
+
+  return (
+    <div className="mt-6 border border-slate-200 dark:border-slate-800 bg-[#f8f9fc] dark:bg-slate-900 rounded-lg p-4 px-6 flex justify-between items-center">
+      <div className="flex items-center gap-3 font-medium">
+        <span className="text-slate-600 dark:text-slate-400">Total Items:</span>
+        <span className="bg-[#e9e6ff] dark:bg-indigo-900/50 text-[#6039db] dark:text-indigo-400 px-3 py-1 rounded-md text-sm font-bold">{fieldsLength}</span>
+      </div>
+      <div className="flex items-center gap-3 font-medium">
+        <span className="text-slate-600 dark:text-slate-400">Total Amount:</span>
+        <span className="text-[#6039db] dark:text-indigo-400 text-xl font-bold tracking-tight">{formatCurrency(subtotal)}</span>
+      </div>
+    </div>
+  );
+}
+
+function TotalsCard({ 
+  control, 
+  isLoading, 
+  isOnline, 
+  invoiceId, 
+  initialData, 
+  settings, 
+  onSubmitDraft, 
+  onSubmitFinal 
+}: any) {
+  const router = useRouter();
+  const watchAll = useWatch({ control });
+  const items = watchAll.items || [];
+  const customerLocation = watchAll.customer_location || "Inside Tamil Nadu";
+
+  const subtotal = items.reduce((sum: number, item: any) => sum + (Number(item?.amount) || 0), 0);
+
+  let cgstRate = 0, sgstRate = 0, igstRate = 0;
+  let cgstAmount = 0, sgstAmount = 0, igstAmount = 0;
+
+  if (customerLocation === "Inside Tamil Nadu") {
+    cgstRate = GST_RATE / 2;
+    sgstRate = GST_RATE / 2;
+    cgstAmount = Math.round(subtotal * cgstRate / 100 * 100) / 100;
+    sgstAmount = Math.round(subtotal * sgstRate / 100 * 100) / 100;
+  } else {
+    igstRate = GST_RATE;
+    igstAmount = Math.round(subtotal * igstRate / 100 * 100) / 100;
+  }
+
+  const gstAmount = cgstAmount + sgstAmount + igstAmount;
+  const grandTotal = subtotal + gstAmount;
+
+  const previewInvoiceData = {
+    invoice_number: initialData?.invoice_number || "PREVIEW",
+    invoice_date: watchAll.invoice_date,
+    customer_name: watchAll.customer_name || "Customer Name",
+    customer_mobile: watchAll.customer_mobile,
+    customer_email: watchAll.customer_email,
+    customer_address: watchAll.customer_address,
+    verification_type: watchAll.verification_type,
+    verification_number: watchAll.verification_number,
+    customer_location: customerLocation,
+    items: watchAll.items,
+    subtotal,
+    gst_rate: GST_RATE,
+    gst_amount: gstAmount,
+    cgst_rate: cgstRate,
+    sgst_rate: sgstRate,
+    igst_rate: igstRate,
+    cgst_amount: cgstAmount,
+    sgst_amount: sgstAmount,
+    igst_amount: igstAmount,
+    grand_total: grandTotal,
+    paid_amount: initialData?.paid_amount || 0,
+    balance_amount: grandTotal - (initialData?.paid_amount || 0),
+    payment_status: watchAll.status,
+    notes: watchAll.notes,
+    transport_mode: watchAll.transport_mode,
+    shipping_address: watchAll.shipping_address,
+    no_of_bundles: watchAll.no_of_bundles
+  };
+
+  return (
+    <Card className="sticky top-24">
+      <CardHeader>
+        <CardTitle className="text-lg">Totals</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Subtotal</span>
+          <span className="font-medium">{formatCurrency(subtotal)}</span>
+        </div>
+        
+        {/* Dynamic GST split rows */}
+        <div className="space-y-2 pt-2 border-t">
+          {customerLocation === "Inside Tamil Nadu" ? (
+            <>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">CGST ({cgstRate}%)</span>
+                <span>{formatCurrency(cgstAmount)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">SGST ({sgstRate}%)</span>
+                <span>{formatCurrency(sgstAmount)}</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">IGST ({igstRate}%)</span>
+              <span>{formatCurrency(igstAmount)}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-between font-bold text-lg pt-4 border-t">
+          <span>Grand Total</span>
+          <span className="text-primary">{formatCurrency(grandTotal)}</span>
+        </div>
+        
+      </CardContent>
+      <CardFooter className="flex-col gap-3 pt-4 border-t bg-slate-50 dark:bg-card">
+        {!isOnline && (
+          <div className="w-full flex items-center justify-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-lg text-sm mb-2">
+            <WifiOff className="w-4 h-4" />
+            <span>Internet connection required to save invoices</span>
+          </div>
+        )}
+        <Button 
+          type="button" 
+          className="w-full text-base py-6"
+          onClick={onSubmitFinal}
+          disabled={isLoading || !isOnline}
+        >
+          {isLoading ? 'Saving...' : (invoiceId ? "Update Invoice" : "Create Invoice")}
+        </Button>
+        <div className="flex w-full gap-3">
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="flex-1"
+            onClick={onSubmitDraft}
+            disabled={isLoading || !isOnline}
+          >
+            {invoiceId ? "Update Draft" : "Save as Draft"}
+          </Button>
+
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button type="button" variant="secondary" className="flex-1" disabled={isLoading}>
+                <Eye className="w-4 h-4 mr-2" />
+                Preview
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-[95vw] md:max-w-4xl max-h-[90vh] overflow-y-auto p-2 sm:p-6 bg-slate-50 dark:bg-slate-900 border-none shadow-xl">
+              <InvoiceDetailsView invoice={previewInvoiceData} settings={settings} />
+            </DialogContent>
+          </Dialog>
+        </div>
+        <Button 
+          type="button" 
+          variant="ghost" 
+          className="w-full text-muted-foreground"
+          onClick={() => router.push('/invoices')}
+          disabled={isLoading}
+        >
+          Cancel
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }

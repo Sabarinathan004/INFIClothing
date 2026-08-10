@@ -18,7 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Customer } from "@/types";
-import { getCustomers } from "@/actions/customers";
+import { searchCustomers } from "@/actions/customers";
 import { useDebounce } from "@/hooks/use-debounce";
 
 interface CustomerAutocompleteProps {
@@ -33,14 +33,19 @@ export function CustomerAutocomplete({ value, onSelect, error }: CustomerAutocom
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   
-  const debouncedSearch = useDebounce(searchQuery, 300);
+  // Debounce to 250ms as requested
+  const debouncedSearch = useDebounce(searchQuery, 250);
 
   useEffect(() => {
     async function fetchCustomers() {
+      if (!debouncedSearch || debouncedSearch.length < 2) {
+        setCustomers([]);
+        return;
+      }
       setIsLoading(true);
       try {
-        const data = await getCustomers(debouncedSearch);
-        setCustomers(data);
+        const data = await searchCustomers(debouncedSearch);
+        setCustomers(data as Customer[]);
       } catch (error) {
         console.error("Failed to search customers:", error);
       } finally {

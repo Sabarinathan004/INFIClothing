@@ -145,9 +145,14 @@ export function CustomerList({ initialCustomers }: CustomerListProps) {
           {selectedCustomer && (
             <CustomerForm
               customer={selectedCustomer}
-              onSuccess={() => {
+              onSuccess={(updatedCustomer) => {
                 setIsEditOpen(false);
-                router.refresh(); // Refresh to get updated server data
+                if (updatedCustomer) {
+                  setCustomers(prev => 
+                    prev.map(c => c.id === updatedCustomer.id ? updatedCustomer : c)
+                  );
+                }
+                router.refresh(); // Still refresh to ensure sync
               }}
               onCancel={() => setIsEditOpen(false)}
             />
