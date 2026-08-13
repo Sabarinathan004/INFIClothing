@@ -56,6 +56,84 @@ export function formatDate(dateStr: string): string {
 }
 
 /**
+ * Format date and time string with hours, minutes, seconds and AM/PM.
+ * Example output: "13 Aug 2026 11:47:42 AM"
+ */
+export function formatDateTime(dateStr?: string, createdAtStr?: string): string {
+  if (!dateStr && !createdAtStr) {
+    return formatSingleDateTime(new Date());
+  }
+
+  let targetDate: Date | null = null;
+
+  // 1. If createdAtStr has a valid timestamp, prefer it for exact time
+  if (createdAtStr) {
+    const cd = new Date(createdAtStr);
+    if (!isNaN(cd.getTime())) {
+      targetDate = cd;
+    }
+  }
+
+  // 2. If dateStr contains full ISO string with time
+  if (!targetDate && dateStr && dateStr.includes("T")) {
+    const dd = new Date(dateStr);
+    if (!isNaN(dd.getTime())) {
+      targetDate = dd;
+    }
+  }
+
+  // 3. If dateStr is YYYY-MM-DD, parse date components + combine with time
+  if (dateStr && !dateStr.includes("T")) {
+    const parts = dateStr.split("-");
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+
+      let hours = 0, minutes = 0, seconds = 0;
+      if (createdAtStr) {
+        const cd = new Date(createdAtStr);
+        if (!isNaN(cd.getTime())) {
+          hours = cd.getHours();
+          minutes = cd.getMinutes();
+          seconds = cd.getSeconds();
+        }
+      } else {
+        const now = new Date();
+        hours = now.getHours();
+        minutes = now.getMinutes();
+        seconds = now.getSeconds();
+      }
+
+      targetDate = new Date(year, month, day, hours, minutes, seconds);
+    }
+  }
+
+  if (!targetDate || isNaN(targetDate.getTime())) {
+    targetDate = new Date();
+  }
+
+  return formatSingleDateTime(targetDate);
+}
+
+function formatSingleDateTime(date: Date): string {
+  const dayMonthYear = new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+
+  const timePart = new Intl.DateTimeFormat('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  }).format(date).toUpperCase();
+
+  return `${dayMonthYear} ${timePart}`;
+}
+
+/**
  * Format date for input fields (YYYY-MM-DD).
  */
 export function toDateInputValue(date: Date = new Date()): string {

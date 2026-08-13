@@ -54,10 +54,6 @@ export function ProductCombobox({
 
   useEffect(() => {
     async function fetchBundles() {
-      if (!debouncedSearch || debouncedSearch.length < 2) {
-        setBundles([]);
-        return;
-      }
       setIsLoading(true);
       try {
         const data = await searchBundles(debouncedSearch);
@@ -71,6 +67,8 @@ export function ProductCombobox({
 
     if (open) {
       fetchBundles();
+    } else {
+      setBundles([]);
     }
   }, [debouncedSearch, open]);
 

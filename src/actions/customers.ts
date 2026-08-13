@@ -32,14 +32,20 @@ export async function getCustomers(query: string = "", page: number = 1, pageSiz
 }
 
 export async function searchCustomers(query: string) {
-  if (!query || query.length < 2) return [];
-  
   const supabase = await createClient();
-  const { data, error } = await supabase
+
+  let request = supabase
     .from("customers")
     .select("id, name, mobile, email, address, verification_type, verification_number, gst_number")
-    .or(`name.ilike.%${query}%,mobile.ilike.%${query}%,verification_number.ilike.%${query}%`)
+    .order("created_at", { ascending: false })
     .limit(15);
+
+  // If a query is provided, filter by it
+  if (query && query.length >= 2) {
+    request = request.or(`name.ilike.%${query}%,mobile.ilike.%${query}%,verification_number.ilike.%${query}%`);
+  }
+
+  const { data, error } = await request;
 
   if (error) return [];
   return data;

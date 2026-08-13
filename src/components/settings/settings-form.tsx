@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { updateSettings } from "@/actions/settings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,9 @@ import { useRouter } from "next/navigation";
 import { CreditCard, Banknote, Smartphone, Wallet } from "lucide-react";
 
 const PAYMENT_METHODS = [
-  { value: "upi", label: "UPI", icon: Smartphone },
-  { value: "bank", label: "Bank Account", icon: CreditCard },
+  { value: "both", label: "UPI & Bank Account Details", icon: CreditCard },
+  { value: "upi", label: "UPI Only", icon: Smartphone },
+  { value: "bank", label: "Bank Account Only", icon: CreditCard },
   { value: "cash", label: "Cash", icon: Banknote },
   { value: "none", label: "None (Hide Payment Details)", icon: Wallet },
 ];
@@ -24,21 +25,39 @@ export function SettingsForm({ initialSettings }: { initialSettings: any }) {
 
   const [formData, setFormData] = useState({
     company_name: initialSettings?.company_name || "",
-    company_address: initialSettings?.company_address || "",
+    company_address: initialSettings?.company_address || initialSettings?.address || "",
     gst_number: initialSettings?.gst_number || "",
-    phone_number: initialSettings?.phone_number || "",
+    phone_number: initialSettings?.phone_number || initialSettings?.phone || "",
     email: initialSettings?.email || "",
-    // Legacy field - kept for backwards compat
     upi_id: initialSettings?.upi_id || "",
-    default_gst_rate: initialSettings?.default_gst_rate || 5,
-    // Payment method settings
-    payment_method: initialSettings?.payment_method || "upi",
-    bank_account_number: initialSettings?.bank_account_number || "",
-    bank_ifsc_code: initialSettings?.bank_ifsc_code || "",
+    default_gst_rate: initialSettings?.default_gst_rate ?? 5,
+    payment_method: initialSettings?.payment_method || "both",
+    bank_account_number: initialSettings?.bank_account_number || initialSettings?.bank_account || "",
+    bank_ifsc_code: initialSettings?.bank_ifsc_code || initialSettings?.bank_ifsc || "",
     bank_name: initialSettings?.bank_name || "",
     bank_account_holder: initialSettings?.bank_account_holder || "",
     cash_instructions: initialSettings?.cash_instructions || "",
   });
+
+  useEffect(() => {
+    if (initialSettings) {
+      setFormData({
+        company_name: initialSettings.company_name || "",
+        company_address: initialSettings.company_address || initialSettings.address || "",
+        gst_number: initialSettings.gst_number || "",
+        phone_number: initialSettings.phone_number || initialSettings.phone || "",
+        email: initialSettings.email || "",
+        upi_id: initialSettings.upi_id || "",
+        default_gst_rate: initialSettings.default_gst_rate ?? 5,
+        payment_method: initialSettings.payment_method || "both",
+        bank_account_number: initialSettings.bank_account_number || initialSettings.bank_account || "",
+        bank_ifsc_code: initialSettings.bank_ifsc_code || initialSettings.bank_ifsc || "",
+        bank_name: initialSettings.bank_name || "",
+        bank_account_holder: initialSettings.bank_account_holder || "",
+        cash_instructions: initialSettings.cash_instructions || "",
+      });
+    }
+  }, [initialSettings]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -53,14 +72,18 @@ export function SettingsForm({ initialSettings }: { initialSettings: any }) {
     e.preventDefault();
     setIsLoading(true);
 
-    // Keep upi_id in sync for legacy support
     const dataToSave = {
       ...formData,
-      upi_id: formData.payment_method === "upi" ? formData.upi_id : formData.upi_id,
     };
 
     try {
-      await updateSettings(dataToSave);
+      const res = await updateSettings(dataToSave);
+      if (res?.data) {
+        setFormData(prev => ({
+          ...prev,
+          ...res.data,
+        }));
+      }
       toast.success("Settings updated successfully");
       router.refresh();
     } catch (error: any) {
@@ -69,6 +92,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: any }) {
       setIsLoading(false);
     }
   };
+
 
   const selectedMethod = PAYMENT_METHODS.find(m => m.value === formData.payment_method);
 
@@ -156,7 +180,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: any }) {
         <CardContent className="space-y-5">
           {/* Payment Method Selector */}
           <div className="space-y-2">
-            <Label>Payment Method</Label>
+            <Label>Payment Display Option</Label>
             <Select
               value={formData.payment_method}
               onValueChange={(val) => handleSelectChange("payment_method", val)}
@@ -182,7 +206,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: any }) {
           </div>
 
           {/* UPI Fields */}
-          {formData.payment_method === "upi" && (
+          {(formData.payment_method === "both" || formData.payment_method === "upi") && (
             <div className="space-y-2 p-4 rounded-lg border bg-muted/30">
               <Label htmlFor="upi_id">UPI ID</Label>
               <Input
@@ -194,13 +218,14 @@ export function SettingsForm({ initialSettings }: { initialSettings: any }) {
                 disabled={isLoading}
                 className="max-w-sm"
               />
-              <p className="text-xs text-muted-foreground">This UPI ID will be shown on the invoice for easy payment.</p>
+              <p className="text-xs text-muted-foreground">This UPI ID will generate a QR code on the invoice for instant payments.</p>
             </div>
           )}
 
           {/* Bank Account Fields */}
-          {formData.payment_method === "bank" && (
+          {(formData.payment_method === "both" || formData.payment_method === "bank") && (
             <div className="p-4 rounded-lg border bg-muted/30 space-y-4">
+              <div className="font-semibold text-sm">Bank Account Details</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="bank_account_holder">Account Holder Name</Label>
@@ -273,6 +298,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: any }) {
               Payment details section will be hidden on the invoice.
             </div>
           )}
+
         </CardContent>
       </Card>
 

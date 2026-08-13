@@ -1,63 +1,92 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server";
-import { unstable_cache } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
-// Wrap the actual DB call in a helper
-async function fetchSettingsFromDb() {
+export async function getSettings() {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("company_settings")
     .select("*")
-    .single();
+    .limit(1)
+    .maybeSingle();
 
-  if (error && error.code !== "PGRST116") {
+  if (error) {
+    console.error("Error fetching settings:", error);
     return null;
   }
 
   return data;
 }
 
-// Cache the settings for the session / 1 hour
-export const getSettings = unstable_cache(
-  async () => {
-    return fetchSettingsFromDb();
-  },
-  ['company_settings'],
-  { revalidate: 3600, tags: ['settings'] }
-);
-
+const ALLOWED_SETTINGS_KEYS = [
+  "company_name",
+  "company_address",
+  "gst_number",
+  "phone_number",
+  "email",
+  "upi_id",
+  "default_gst_rate",
+  "payment_method",
+  "bank_account_number",
+  "bank_ifsc_code",
+  "bank_name",
+  "bank_account_holder",
+  "cash_instructions",
+];
 
 export async function updateSettings(data: any) {
   const supabase = await createClient();
 
+  // Clean data payload to only include valid columns in company_settings table
+  const cleanData: Record<string, any> = {};
+  for (const key of ALLOWED_SETTINGS_KEYS) {
+    if (key in data) {
+      cleanData[key] = data[key];
+    }
+  }
+
   const { data: existing } = await supabase
     .from("company_settings")
     .select("id")
-    .single();
+    .limit(1)
+    .maybeSingle();
 
   let error;
-  if (existing) {
-    const { error: updateError } = await supabase
+  let savedData = null;
+
+  if (existing?.id) {
+    const { data: updated, error: updateError } = await supabase
       .from("company_settings")
-      .update(data)
-      .eq("id", existing.id);
+      .update({
+        ...cleanData,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id)
+      .select()
+      .single();
     error = updateError;
+    savedData = updated;
   } else {
-    const { error: insertError } = await supabase
+    const { data: inserted, error: insertError } = await supabase
       .from("company_settings")
-      .insert([data]);
+      .insert([cleanData])
+      .select()
+      .single();
     error = insertError;
+    savedData = inserted;
   }
 
   if (error) {
     console.error("Error updating settings:", error);
-    throw new Error("Failed to update settings");
+    throw new Error(error.message || "Failed to update settings");
   }
 
-  const { revalidateTag } = await import("next/cache");
   revalidateTag("settings", "max");
+  revalidatePath("/settings");
+  revalidatePath("/invoices");
 
-  return { success: true };
+
+  return { success: true, data: savedData };
 }

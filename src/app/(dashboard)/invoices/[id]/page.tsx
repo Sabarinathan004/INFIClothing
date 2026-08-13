@@ -44,7 +44,7 @@ export default async function InvoiceViewPage({
             {invoice.payment_status !== 'cancelled' && <CancelInvoiceButton id={invoice.id} />}
             <DeleteInvoiceButton id={invoice.id} variant="outline" redirectAfterDelete={true} />
             <WhatsAppShare invoice={invoice} settings={settings} />
-            <DownloadPdfButton />
+            <DownloadPdfButton invoice={invoice} />
           </div>
         </div>
 

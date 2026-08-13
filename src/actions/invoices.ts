@@ -43,11 +43,11 @@ export async function getInvoiceById(id: string) {
     .from("invoices")
     .select("*")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
-  if (invoiceError) {
+  if (invoiceError || !invoice) {
     console.error(`Error fetching invoice ${id}:`, invoiceError);
-    throw new Error("Failed to fetch invoice details");
+    throw new Error("Invoice not found or failed to fetch details");
   }
 
   const [itemsResponse, paymentsResponse] = await Promise.all([
@@ -63,21 +63,13 @@ export async function getInvoiceById(id: string) {
       .order("payment_date", { ascending: false })
   ]);
 
-  if (itemsResponse.error) {
-    console.error(`Error fetching invoice items for ${id}:`, itemsResponse.error);
-    throw new Error("Failed to fetch invoice items");
-  }
-
-  if (paymentsResponse.error) {
-    console.error(`Error fetching payments for invoice ${id}:`, paymentsResponse.error);
-  }
-
   return {
     ...invoice,
     items: itemsResponse.data || [],
     payments: paymentsResponse.data || [],
   };
 }
+
 
 /**
  * Compute GST split based on customer location.
@@ -418,15 +410,27 @@ export async function updateInvoice(id: string, data: InvoiceSchemaType) {
 export async function deleteInvoice(id: string) {
   const supabase = await createClient();
 
-  const invoice = await getInvoiceById(id);
+  // Retrieve customer_id if exists for cache revalidation
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("customer_id")
+    .eq("id", id)
+    .maybeSingle();
+
+  // Delete associated payments and items
   await supabase.from("payments").delete().eq("invoice_id", id);
   await supabase.from("invoice_items").delete().eq("invoice_id", id);
+
+  // Delete the invoice record
   const { error } = await supabase.from("invoices").delete().eq("id", id);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error(`Error deleting invoice ${id}:`, error);
+    throw new Error(error.message || "Failed to delete invoice");
+  }
 
   revalidatePath("/invoices");
-  if (invoice.customer_id) {
+  if (invoice?.customer_id) {
     revalidatePath(`/customers/${invoice.customer_id}`);
   }
   return { success: true };
@@ -435,7 +439,15 @@ export async function deleteInvoice(id: string) {
 export async function cancelInvoice(id: string) {
   const supabase = await createClient();
 
-  const invoice = await getInvoiceById(id);
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("customer_id, payment_status")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!invoice) {
+    throw new Error("Invoice not found");
+  }
 
   if (invoice.payment_status === 'cancelled') {
      throw new Error("Invoice is already cancelled");
@@ -449,7 +461,7 @@ export async function cancelInvoice(id: string) {
     })
     .eq("id", id);
 
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(error.message || "Failed to cancel invoice");
 
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${id}`);
@@ -458,3 +470,4 @@ export async function cancelInvoice(id: string) {
   }
   return { success: true };
 }
+

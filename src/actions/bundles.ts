@@ -30,16 +30,20 @@ export async function getBundles(activeOnly = false, page: number = 1, pageSize:
 }
 
 export async function searchBundles(query: string) {
-  if (!query || query.length < 2) return [];
-  
   const supabase = await createClient();
-  const { data, error } = await supabase
+
+  let request = supabase
     .from("bundles")
     .select("id, name, hsn_code, default_price")
     .eq("is_active", true)
-    .or(`name.ilike.%${query}%,hsn_code.ilike.%${query}%`)
     .order("name", { ascending: true })
-    .limit(15);
+    .limit(20);
+
+  if (query && query.trim().length > 0) {
+    request = request.or(`name.ilike.%${query}%,hsn_code.ilike.%${query}%`);
+  }
+
+  const { data, error } = await request;
 
   if (error) return [];
   return data;

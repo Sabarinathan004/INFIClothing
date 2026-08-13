@@ -201,3 +201,40 @@
     padding-top: calc(env(safe-area-inset-top, 0px) + 6px);
   }
 }
+
+/* ===== Print Styles for Invoice ===== */
+@media print {
+  /* Hide everything except the invoice */
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Reset page margins for tight fit */
+  @page {
+    margin: 8mm;
+    size: A4;
+  }
+
+  /* Hide navigation, sidebar, header, action buttons */
+  nav,
+  aside,
+  header,
+  [class*="print:hidden"] {
+    display: none !important;
+  }
+
+  /* Ensure the invoice container is full-width */
+  .max-w-4xl {
+    max-width: 100% !important;
+  }
+
+  /* Remove shadows and rounded corners for clean print */
+  .shadow-sm,
+  .rounded-xl {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+}
+

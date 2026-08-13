@@ -38,13 +38,12 @@ export function CustomerAutocomplete({ value, onSelect, error }: CustomerAutocom
 
   useEffect(() => {
     async function fetchCustomers() {
-      if (!debouncedSearch || debouncedSearch.length < 2) {
-        setCustomers([]);
-        return;
-      }
       setIsLoading(true);
       try {
-        const data = await searchCustomers(debouncedSearch);
+        // When search is empty or too short, load recent customers
+        // When search has 2+ chars, filter by query
+        const query = debouncedSearch && debouncedSearch.length >= 2 ? debouncedSearch : "";
+        const data = await searchCustomers(query);
         setCustomers(data as Customer[]);
       } catch (error) {
         console.error("Failed to search customers:", error);
