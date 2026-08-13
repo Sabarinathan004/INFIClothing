@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Eye, Search, Plus, Copy, Edit } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
-import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
+import { formatCurrency, formatDate, getStatusColor, getStatusLabel } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { duplicateInvoice } from "@/actions/invoices";
@@ -139,9 +139,17 @@ export function InvoiceList({ initialInvoices }: InvoiceListProps) {
                     )}
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge className={getStatusColor(invoice.status)} variant="outline">
-                      {invoice.status === 'partial' ? 'Partially Paid' : invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
-                    </Badge>
+                    {(() => {
+                      // For drafts/cancelled use the status field; for active invoices use payment_status
+                      const displayStatus = (invoice.status === 'draft' || invoice.status === 'cancelled')
+                        ? invoice.status
+                        : (invoice.payment_status || invoice.status);
+                      return (
+                        <Badge className={getStatusColor(displayStatus)} variant="outline">
+                          {getStatusLabel(displayStatus)}
+                        </Badge>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-right print:hidden">
                     <div className="flex justify-end gap-1">

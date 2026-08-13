@@ -150,6 +150,7 @@ export function getStatusColor(status: string): string {
     case 'partial':
       return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400';
     case 'unpaid':
+    case 'created': // DB stores 'created' for non-draft invoices; treat as unpaid
       return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
     case 'draft':
       return 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-400';
@@ -159,6 +160,24 @@ export function getStatusColor(status: string): string {
       return 'bg-slate-100 text-slate-800';
   }
 }
+
+/**
+ * Get human-readable label for an invoice status.
+ * Uses payment_status for display when available (paid/unpaid/partial).
+ * Falls back gracefully for draft, cancelled, or the DB 'created' value.
+ */
+export function getStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    paid: 'Paid',
+    unpaid: 'Unpaid',
+    partial: 'Partially Paid',
+    draft: 'Draft',
+    cancelled: 'Cancelled',
+    created: 'Unpaid', // DB internal value — display as Unpaid
+  };
+  return map[status] ?? (status.charAt(0).toUpperCase() + status.slice(1));
+}
+
 
 /**
  * Convert number to words (Indian numbering system) for invoice amount.

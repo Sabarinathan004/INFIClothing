@@ -23,10 +23,8 @@ export const invoiceSchema = z.object({
   customer_address: z.string().default(''),
 
   // Verification Details
-  verification_type: z.enum(VERIFICATION_TYPES, {
-    error: 'Please select a verification type.',
-  }),
-  verification_number: z.string().min(1, 'Verification number is required'),
+  verification_type: z.enum(VERIFICATION_TYPES).optional().nullable(),
+  verification_number: z.string().optional().nullable(),
 
   // Customer Location
   customer_location: z

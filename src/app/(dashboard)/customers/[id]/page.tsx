@@ -2,7 +2,7 @@ import { getCustomerById } from "@/actions/customers";
 import { getInvoicesByCustomer } from "@/actions/invoices";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
+import { formatCurrency, formatDate, getStatusColor, getStatusLabel } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
@@ -129,7 +129,7 @@ export default async function CustomerLedgerPage({
                           </TableCell>
                           <TableCell>
                             <Badge className={getStatusColor(invoice.payment_status)} variant="outline">
-                              {invoice.payment_status === 'partial' ? 'Partially Paid' : invoice.payment_status.charAt(0).toUpperCase() + invoice.payment_status.slice(1)}
+                              {getStatusLabel(invoice.payment_status)}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">

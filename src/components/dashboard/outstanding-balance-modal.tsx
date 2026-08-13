@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
+import { formatCurrency, formatDate, getStatusColor, getStatusLabel } from "@/lib/utils";
 import { getOutstandingInvoices } from "@/actions/dashboard";
 import { AlertCircle, Search, Phone, ExternalLink, TrendingDown, X } from "lucide-react";
 import Link from "next/link";
@@ -187,7 +187,7 @@ export function OutstandingBalanceModal({ open, onOpenChange, totalOutstanding }
                       {formatCurrency(inv.balance_amount)}
                     </span>
                     <Badge className={`${getStatusColor(inv.payment_status)} text-[10px] px-1.5 py-0`} variant="outline">
-                      {inv.payment_status === "partial" ? "Partially Paid" : "Unpaid"}
+                      {getStatusLabel(inv.payment_status)}
                     </Badge>
                   </div>
                 </div>

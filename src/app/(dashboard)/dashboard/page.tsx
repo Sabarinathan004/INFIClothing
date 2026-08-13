@@ -1,7 +1,7 @@
 import { getDashboardStats } from "@/actions/dashboard";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency, getStatusColor } from "@/lib/utils";
+import { formatCurrency, getStatusColor, getStatusLabel } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, IndianRupee, Users, FileText, ArrowUpRight } from "lucide-react";
@@ -147,7 +147,7 @@ async function DashboardContent() {
                       <TableCell className="text-right">{formatCurrency(inv.grand_total)}</TableCell>
                       <TableCell className="text-center">
                         <Badge className={getStatusColor(inv.payment_status)} variant="outline">
-                          {inv.payment_status === 'partial' ? 'Partially Paid' : inv.payment_status.charAt(0).toUpperCase() + inv.payment_status.slice(1)}
+                          {getStatusLabel(inv.payment_status)}
                         </Badge>
                       </TableCell>
                     </TableRow>

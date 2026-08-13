@@ -78,7 +78,10 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
       })),
       gst_rate: GST_RATE,
       notes: initialData.notes || "",
-      status: initialData.status,
+      // Map DB status values ('created') to valid form enum values
+      status: (['draft', 'unpaid', 'partial', 'paid', 'cancelled'].includes(initialData.status)
+        ? initialData.status
+        : 'unpaid') as any,
       transport_mode: initialData.transport_mode || "",
       shipping_address: initialData.shipping_address || "",
       no_of_bundles: initialData.no_of_bundles || "",
@@ -185,6 +188,36 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
     }
   };
 
+  const onInvalid = (errs: any) => {
+    // Collect human-readable field names from errors
+    const fieldLabels: Record<string, string> = {
+      invoice_date: 'Invoice Date',
+      customer_name: 'Customer Name',
+      customer_location: 'Customer Location',
+      verification_type: 'Verification Type',
+      verification_number: 'Verification Number',
+      items: 'Product Items',
+    };
+    const errFields = Object.keys(errs)
+      .map((k) => fieldLabels[k] || k)
+      .join(', ');
+    // Also handle nested items errors
+    const hasItemErrors = errs.items && Array.isArray(errs.items)
+      ? errs.items.some((item: any) => item)
+      : false;
+    const msg = errFields
+      ? `Please fix: ${errFields}`
+      : 'Please fill all required fields correctly.';
+    toast.error(msg);
+    // Scroll to the first error field
+    setTimeout(() => {
+      const firstErrEl = document.querySelector('[data-field-error="true"]');
+      if (firstErrEl) {
+        firstErrEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
+
   return (
     <form className="space-y-6 lg:space-y-8">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -199,12 +232,13 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Invoice Date</Label>
+                <div className="space-y-2" data-field-error={!!errors.invoice_date || undefined}>
+                  <Label className={errors.invoice_date ? "text-destructive" : ""}>Invoice Date <span className="text-destructive">*</span></Label>
                   <Input
                     type="date"
                     {...register("invoice_date")}
                     disabled={isLoading}
+                    className={errors.invoice_date ? "border-destructive ring-1 ring-destructive" : ""}
                   />
                   {errors.invoice_date && (
                     <p className="text-sm text-destructive">{errors.invoice_date.message}</p>
@@ -225,9 +259,10 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
 
               {/* Customer details manual entry fallback */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                <div className="space-y-2">
-                  <Label>Customer Name <span className="text-destructive">*</span></Label>
-                  <Input {...register("customer_name")} disabled={isLoading} className={errors.customer_name ? "border-destructive" : ""} />
+                <div className="space-y-2" data-field-error={!!errors.customer_name || undefined}>
+                  <Label className={errors.customer_name ? "text-destructive" : ""}>Customer Name <span className="text-destructive">*</span></Label>
+                  <Input {...register("customer_name")} disabled={isLoading} className={errors.customer_name ? "border-destructive ring-1 ring-destructive" : ""} />
+                  {errors.customer_name && <p className="text-sm text-destructive">{errors.customer_name.message}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label>Mobile Number</Label>
@@ -235,7 +270,7 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                 </div>
                 <div className="space-y-2">
                   <Label>Email</Label>
-                  <Input type="email" {...register("customer_email")} disabled={isLoading} />
+                  <Input {...register("customer_email")} disabled={isLoading} />
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Address</Label>
@@ -249,16 +284,16 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>
-                      Verification Type <span className="text-destructive">*</span>
+                      Verification Type
                     </Label>
                     <Controller
                       name="verification_type"
                       control={control}
                       render={({ field }) => (
                         <Select
-                          value={field.value}
+                          value={field.value ?? ""}
                           onValueChange={(val) => {
-                            field.onChange(val);
+                            field.onChange(val || undefined);
                             // Clear verification number when type changes
                             setValue("verification_number", "");
                           }}
@@ -282,7 +317,7 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
 
                   <div className="space-y-2">
                     <Label>
-                      Verification Number <span className="text-destructive">*</span>
+                      Verification Number
                     </Label>
                     <Input
                       placeholder={
@@ -302,8 +337,8 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
               </div>
 
               {/* Customer Location */}
-              <div className="space-y-2 pt-2">
-                <Label>
+              <div className="space-y-2 pt-2" data-field-error={!!errors.customer_location || undefined}>
+                <Label className={errors.customer_location ? "text-destructive" : ""}>
                   Customer Location <span className="text-destructive">*</span>
                 </Label>
                 <Controller
@@ -315,7 +350,7 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                       onValueChange={field.onChange}
                       disabled={isLoading}
                     >
-                      <SelectTrigger className={`max-w-xs ${errors.customer_location ? "border-destructive" : ""}`}>
+                      <SelectTrigger className={`max-w-xs ${errors.customer_location ? "border-destructive ring-1 ring-destructive" : ""}`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -406,8 +441,11 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {fields.map((field, index) => (
-                      <TableRow key={field.id} className="hover:bg-transparent border-slate-100 dark:border-slate-800">
+                    {fields.map((field, index) => {
+                      const itemErrors = errors.items?.[index];
+                      const hasItemError = !!(itemErrors?.bundle_name || itemErrors?.quantity || itemErrors?.rate);
+                      return (
+                      <TableRow key={field.id} className={`hover:bg-transparent border-slate-100 dark:border-slate-800 ${hasItemError ? 'bg-destructive/5' : ''}`} data-field-error={hasItemError || undefined}>
                         <TableCell className="p-3 align-top">
                           {productMode === 'store' ? (
                             <Controller
@@ -420,24 +458,26 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                                   onSelect={(bundle) => handleBundleSelect(index, bundle)}
                                   placeholder="Select a product..."
                                   disabled={isLoading}
-                                  hasError={!!errors.items?.[index]?.bundle_name}
+                                  hasError={!!itemErrors?.bundle_name}
                                 />
                               )}
                             />
                           ) : (
-                            <Input
-                              {...register(`items.${index}.bundle_name` as const)}
-                              placeholder="Enter product name manually..."
-                              className={errors.items?.[index]?.bundle_name ? "border-destructive" : ""}
-                              disabled={isLoading}
-                            />
+                            <>
+                              <Input
+                                {...register(`items.${index}.bundle_name` as const)}
+                                placeholder="Enter product name manually..."
+                                className={itemErrors?.bundle_name ? "border-destructive ring-1 ring-destructive" : ""}
+                                disabled={isLoading}
+                              />
+                              {itemErrors?.bundle_name && <p className="text-xs text-destructive mt-1">{itemErrors.bundle_name.message}</p>}
+                            </>
                           )}
                         </TableCell>
                         <TableCell className="p-3 align-top">
                           <Input
                             {...register(`items.${index}.hsn_code` as const)}
                             placeholder="HSN Code"
-                            className={errors.items?.[index]?.hsn_code ? "border-destructive" : ""}
                             disabled={isLoading}
                           />
                         </TableCell>
@@ -465,9 +505,10 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                             {...register(`items.${index}.rate` as const, {
                               onChange: () => calculateAmount(index)
                             })}
-                            className="text-right"
+                            className={`text-right ${itemErrors?.rate ? 'border-destructive ring-1 ring-destructive' : ''}`}
                             disabled={isLoading}
                           />
+                          {itemErrors?.rate && <p className="text-xs text-destructive mt-1">{itemErrors.rate.message}</p>}
                         </TableCell>
                         <TableCell className="p-3 align-top">
                           <Input
@@ -491,7 +532,8 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -514,8 +556,8 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
             invoiceId={invoiceId}
             initialData={initialData}
             settings={settings}
-            onSubmitDraft={handleSubmit((data) => onSubmit(data, 'draft'))}
-            onSubmitFinal={handleSubmit((data) => onSubmit(data, 'unpaid'))}
+            onSubmitDraft={handleSubmit((data) => onSubmit(data, 'draft'), onInvalid)}
+            onSubmitFinal={handleSubmit((data) => onSubmit(data, 'unpaid'), onInvalid)}
           />
         </div>
       </div>
