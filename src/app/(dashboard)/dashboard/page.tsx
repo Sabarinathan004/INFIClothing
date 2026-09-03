@@ -118,8 +118,8 @@ async function DashboardContent() {
               <Link href="/invoices">View All</Link>
             </Button>
           </CardHeader>
-          <CardContent>
-            <Table>
+          <CardContent className="overflow-x-auto">
+            <Table className="min-w-[500px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Invoice #</TableHead>

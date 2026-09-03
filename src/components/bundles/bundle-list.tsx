@@ -95,7 +95,7 @@ export function BundleList({ initialBundles }: BundleListProps) {
       </div>
 
       <div className="rounded-xl border bg-card">
-        <Table>
+        <Table className="min-w-[600px]">
           <TableHeader>
             <TableRow>
               <TableHead>Product Name</TableHead>

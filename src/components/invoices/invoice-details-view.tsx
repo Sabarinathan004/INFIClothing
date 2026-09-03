@@ -3,6 +3,7 @@
 import { formatCurrency, formatDate, formatDateTime, numberToWords } from "@/lib/utils";
 import { useEffect, useState, useRef } from "react";
 import QRCode from "qrcode";
+import { TEMPLATES } from "./template-selector";
 
 /* ─────────────────── Helper: UPI QR Code ─────────────────── */
 function UpiQrCode({ upiId, amount, name }: { upiId: string; amount?: number; name?: string }) {
@@ -97,7 +98,7 @@ function getVerificationDisplay(invoice: any): string | null {
 /* ═══════════════════════════════════════════════════════════════════
    MAIN COMPONENT — Traditional Indian Tax Invoice Layout
    ═══════════════════════════════════════════════════════════════════ */
-export function InvoiceDetailsView({ invoice, settings }: { invoice: any; settings: any }) {
+export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; settings: any }) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -439,6 +440,36 @@ export function InvoiceDetailsView({ invoice, settings }: { invoice: any; settin
           </tr>
         </tbody>
       </table>
+    </div>
+  );
+}
+
+export function InvoiceDetailsView({ invoice, settings }: { invoice: any; settings: any }) {
+  const [templateId, setTemplateId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("selected_invoice_template");
+    if (saved) {
+      setTemplateId(saved);
+    }
+  }, []);
+
+  const selectedTemplate = TEMPLATES.find(t => t.id === templateId);
+
+  let content;
+  if (selectedTemplate) {
+    const TemplateComponent = selectedTemplate.component;
+    // @ts-ignore
+    content = <TemplateComponent invoice={invoice} settings={settings} />;
+  } else {
+    content = <LegacyInvoiceTemplate invoice={invoice} settings={settings} />;
+  }
+
+  return (
+    <div className="w-full overflow-x-auto pb-4 custom-scrollbar print:overflow-visible print:pb-0">
+       <div className="min-w-[800px] w-full max-w-4xl mx-auto print:min-w-0 print:max-w-none print:w-full">
+         {content}
+       </div>
     </div>
   );
 }

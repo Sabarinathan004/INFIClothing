@@ -43,7 +43,7 @@ function setDismissedTimestamp(): void {
   } catch {}
 }
 
-const DISMISS_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const DISMISS_DURATION_MS = 8 * 60 * 60 * 1000; // 8 hours
 
 export function PwaRegistry() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);

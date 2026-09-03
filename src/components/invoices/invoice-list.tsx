@@ -96,7 +96,7 @@ export function InvoiceList({ initialInvoices }: InvoiceListProps) {
       </div>
 
       <div className="rounded-xl border bg-card">
-        <Table>
+        <Table className="min-w-[800px]">
           <TableHeader>
             <TableRow>
               <TableHead>Invoice #</TableHead>

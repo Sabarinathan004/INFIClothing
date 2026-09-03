@@ -86,7 +86,7 @@ export function CustomerList({ initialCustomers }: CustomerListProps) {
       </div>
 
       <div className="rounded-xl border bg-card">
-        <Table>
+        <Table className="min-w-[700px]">
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
