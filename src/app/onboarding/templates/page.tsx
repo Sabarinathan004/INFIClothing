@@ -35,6 +35,44 @@ const CARD_WIDTH = 270;
 const GAP = 24;
 const OFFSET = CARD_WIDTH + GAP;
 
+// --- DUMMY DATA FOR PREVIEW ---
+const dummyInvoice = {
+  id: 'INV-2023-001',
+  date: new Date().toISOString(),
+  dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+  customer: {
+    name: 'Alex Johnson',
+    email: 'alex@example.com',
+    phone: '+1 234 567 890',
+    address: '123 Tech Boulevard',
+    city: 'San Francisco',
+    state: 'CA',
+    zipCode: '94105',
+    country: 'USA'
+  },
+  items: [
+    { id: '1', description: 'Web Design Services', quantity: 1, rate: 1500, amount: 1500 },
+    { id: '2', description: 'Hosting (1 Year)', quantity: 1, rate: 120, amount: 120 }
+  ],
+  subTotal: 1620,
+  taxAmount: 162,
+  total: 1782,
+  currency: 'USD',
+  notes: 'Thank you for your business!'
+};
+
+const dummySettings = {
+  businessName: 'INFI Clothing',
+  email: 'contact@inficlothing.com',
+  phone: '+1 987 654 321',
+  address: '456 Fashion Avenue',
+  city: 'New York',
+  state: 'NY',
+  zipCode: '10001',
+  country: 'USA',
+  taxId: 'TAX-890123'
+};
+
 // --- MAIN PAGE COMPONENT ---
 export default function TemplateSelectionPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -150,7 +188,11 @@ export default function TemplateSelectionPage() {
                 zIndex
               }}
             >
-              <TemplateComponent />
+              <TemplateComponent 
+                invoice={dummyInvoice as any} 
+                settings={dummySettings as any} 
+                isPreview={true} 
+              />
             </motion.div>
           );
         })}
