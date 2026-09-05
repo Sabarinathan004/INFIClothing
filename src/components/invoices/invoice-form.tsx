@@ -6,13 +6,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { invoiceSchema, InvoiceSchemaType } from "@/schemas/invoice";
 import { Bundle, Customer } from "@/types";
 import { createInvoice, updateInvoice } from "@/actions/invoices";
+import { fetchGSTDetails } from "@/actions/customers";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { CustomerAutocomplete } from "@/components/customers/customer-autocomplete";
+import { CustomerSelector } from "@/components/invoices/customer-selector";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Trash2, ReceiptText, Store, Pencil, Search } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,12 +29,6 @@ import { useOnlineStatus } from "@/hooks/use-online-status";
 import { QtyInput } from "@/components/invoices/qty-input";
 import { ProductCombobox } from "@/components/invoices/product-combobox";
 
-const VERIFICATION_PLACEHOLDERS: Record<string, string> = {
-  GST: "33ABCDE1234F1Z5",
-  Aadhar: "123412341234",
-  PAN: "ABCDE1234F",
-};
-
 const GST_RATE = 5; // Fixed at 5%
 
 interface InvoiceFormProps {
@@ -45,18 +40,12 @@ interface InvoiceFormProps {
 
 export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }: InvoiceFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingGST, setIsFetchingGST] = useState(false);
   const [productMode, setProductMode] = useState<'store' | 'manual'>('store');
   const router = useRouter();
   const isOnline = useOnlineStatus();
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm<InvoiceSchemaType>({
+  const form = useForm<InvoiceSchemaType>({
     resolver: zodResolver(invoiceSchema) as any,
     mode: "onChange",
     defaultValues: initialData ? {
@@ -105,44 +94,22 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
     },
   });
 
+  const {
+    register,
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = form;
+
   // We don't watch items at the root to prevent full form re-renders on every keystroke
   const { fields, append, remove } = useFieldArray({
     control,
     name: "items",
   });
 
-  const watchVerificationType = watch("verification_type");
-
-  const handleCustomerSelect = (customer: Customer | null) => {
-    if (customer) {
-      setValue("customer_id", customer.id, { shouldValidate: true });
-      setValue("customer_name", customer.name, { shouldValidate: true });
-      setValue("customer_mobile", customer.mobile || "", { shouldValidate: true });
-      setValue("customer_email", customer.email || "", { shouldValidate: true });
-      setValue("customer_address", customer.address || "", { shouldValidate: true });
-      // Auto-fill verification details from customer record
-      if (customer.verification_type) {
-        setValue("verification_type", customer.verification_type, { shouldValidate: true });
-      }
-      if (customer.verification_number) {
-        setValue("verification_number", customer.verification_number, { shouldValidate: true });
-      } else if (customer.gst_number) {
-        // Legacy fallback: customer has old gst_number field
-        setValue("verification_type", "GST", { shouldValidate: true });
-        setValue("verification_number", customer.gst_number, { shouldValidate: true });
-      }
-    } else {
-      setValue("customer_id", null, { shouldValidate: true });
-      setValue("customer_name", "", { shouldValidate: true });
-      setValue("customer_mobile", "", { shouldValidate: true });
-      setValue("customer_email", "", { shouldValidate: true });
-      setValue("customer_address", "", { shouldValidate: true });
-      setValue("verification_type", undefined as any, { shouldValidate: true });
-      setValue("verification_number", "", { shouldValidate: true });
-    }
-  };
-
-  const { getValues } = useForm<InvoiceSchemaType>(); // We actually get this from the destructured useForm above
+  const { getValues } = form; // We actually get this from the destructured useForm above
 
   const handleBundleSelect = (index: number, bundle: Bundle) => {
     // @ts-ignore
@@ -167,7 +134,7 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
       toast.error("Internet connection required to save invoices.");
       return;
     }
-    
+
     setIsLoading(true);
     try {
       data.status = status;
@@ -230,8 +197,7 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                 Invoice Details
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <CardContent className="space-y-6">
                 <div className="space-y-2" data-field-error={!!errors.invoice_date || undefined}>
                   <Label className={errors.invoice_date ? "text-destructive" : ""}>Invoice Date <span className="text-destructive">*</span></Label>
                   <Input
@@ -244,97 +210,13 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                     <p className="text-sm text-destructive">{errors.invoice_date.message}</p>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label>Search Customer</Label>
-                  <CustomerAutocomplete 
-                    value={watch("customer_id")} 
-                    onSelect={handleCustomerSelect} 
-                    error={!!errors.customer_name}
-                  />
-                  {errors.customer_name && (
-                    <p className="text-sm text-destructive">Please select or enter a customer name.</p>
-                  )}
-                </div>
-              </div>
+              </CardContent>
+            </Card>
+            
+            <CustomerSelector form={form} isLoading={isLoading} />
 
-              {/* Customer details manual entry fallback */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                <div className="space-y-2" data-field-error={!!errors.customer_name || undefined}>
-                  <Label className={errors.customer_name ? "text-destructive" : ""}>Customer Name <span className="text-destructive">*</span></Label>
-                  <Input {...register("customer_name")} disabled={isLoading} className={errors.customer_name ? "border-destructive ring-1 ring-destructive" : ""} />
-                  {errors.customer_name && <p className="text-sm text-destructive">{errors.customer_name.message}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label>Mobile Number</Label>
-                  <Input {...register("customer_mobile")} disabled={isLoading} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input {...register("customer_email")} disabled={isLoading} />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Address</Label>
-                  <Input {...register("customer_address")} disabled={isLoading} />
-                </div>
-              </div>
-
-              {/* Verification Details */}
-              <div className="space-y-3 pt-4 border-t">
-                <p className="text-sm font-semibold text-foreground">Verification Details</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>
-                      Verification Type
-                    </Label>
-                    <Controller
-                      name="verification_type"
-                      control={control}
-                      render={({ field }) => (
-                        <Select
-                          value={field.value ?? ""}
-                          onValueChange={(val) => {
-                            field.onChange(val || undefined);
-                            // Clear verification number when type changes
-                            setValue("verification_number", "");
-                          }}
-                          disabled={isLoading}
-                        >
-                          <SelectTrigger className={errors.verification_type ? "border-destructive" : ""}>
-                            <SelectValue placeholder="Select type..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="GST">GST</SelectItem>
-                            <SelectItem value="Aadhar">Aadhar</SelectItem>
-                            <SelectItem value="PAN">PAN</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                    {errors.verification_type && (
-                      <p className="text-sm text-destructive">{errors.verification_type.message}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>
-                      Verification Number
-                    </Label>
-                    <Input
-                      placeholder={
-                        watchVerificationType
-                          ? VERIFICATION_PLACEHOLDERS[watchVerificationType]
-                          : "Select type first..."
-                      }
-                      className={`uppercase ${errors.verification_number ? "border-destructive" : ""}`}
-                      {...register("verification_number")}
-                      disabled={isLoading || !watchVerificationType}
-                    />
-                    {errors.verification_number && (
-                      <p className="text-sm text-destructive">{errors.verification_number.message}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
+            <Card>
+              <CardContent className="pt-6 space-y-6">
 
               {/* Customer Location */}
               <div className="space-y-2 pt-2" data-field-error={!!errors.customer_location || undefined}>
@@ -392,10 +274,10 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                 <CardTitle className="text-xl font-semibold">Product Items</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">Add products to your invoice</p>
               </div>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => append({ bundle_name: "", hsn_code: "", quantity: 1, rate: 0, amount: 0 })}
                 disabled={isLoading}
               >
@@ -403,10 +285,10 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
               </Button>
             </CardHeader>
             <CardContent className="p-0 sm:p-6 sm:pt-6">
-              
+
               {/* Custom Tabs */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-                <div 
+                <div
                   className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 cursor-pointer transition-all ${productMode === 'store' ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/50'}`}
                   onClick={() => setProductMode('store')}
                 >
@@ -415,7 +297,7 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                   </div>
                   <p className="text-xs text-muted-foreground">Choose from your existing products</p>
                 </div>
-                <div 
+                <div
                   className={`flex flex-col items-center justify-center p-4 rounded-lg border-2 cursor-pointer transition-all ${productMode === 'manual' ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/50'}`}
                   onClick={() => setProductMode('manual')}
                 >
@@ -445,93 +327,93 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
                       const itemErrors = errors.items?.[index];
                       const hasItemError = !!(itemErrors?.bundle_name || itemErrors?.quantity || itemErrors?.rate);
                       return (
-                      <TableRow key={field.id} className={`hover:bg-transparent border-slate-100 dark:border-slate-800 ${hasItemError ? 'bg-destructive/5' : ''}`} data-field-error={hasItemError || undefined}>
-                        <TableCell className="p-3 align-top">
-                          {productMode === 'store' ? (
-                            <Controller
-                              name={`items.${index}.bundle_name` as const}
-                              control={control}
-                              render={({ field }) => (
-                                <ProductCombobox
-                                  value={field.value}
-                                  onChange={field.onChange}
-                                  onSelect={(bundle) => handleBundleSelect(index, bundle)}
-                                  placeholder="Select a product..."
+                        <TableRow key={field.id} className={`hover:bg-transparent border-slate-100 dark:border-slate-800 ${hasItemError ? 'bg-destructive/5' : ''}`} data-field-error={hasItemError || undefined}>
+                          <TableCell className="p-3 align-top">
+                            {productMode === 'store' ? (
+                              <Controller
+                                name={`items.${index}.bundle_name` as const}
+                                control={control}
+                                render={({ field }) => (
+                                  <ProductCombobox
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    onSelect={(bundle) => handleBundleSelect(index, bundle)}
+                                    placeholder="Select a product..."
+                                    disabled={isLoading}
+                                    hasError={!!itemErrors?.bundle_name}
+                                  />
+                                )}
+                              />
+                            ) : (
+                              <>
+                                <Input
+                                  {...register(`items.${index}.bundle_name` as const)}
+                                  placeholder="Enter product name manually..."
+                                  className={itemErrors?.bundle_name ? "border-destructive ring-1 ring-destructive" : ""}
                                   disabled={isLoading}
-                                  hasError={!!itemErrors?.bundle_name}
+                                />
+                                {itemErrors?.bundle_name && <p className="text-xs text-destructive mt-1">{itemErrors.bundle_name.message}</p>}
+                              </>
+                            )}
+                          </TableCell>
+                          <TableCell className="p-3 align-top">
+                            <Input
+                              {...register(`items.${index}.hsn_code` as const)}
+                              placeholder="HSN Code"
+                              disabled={isLoading}
+                            />
+                          </TableCell>
+                          <TableCell className="p-3 align-top flex justify-center">
+                            <Controller
+                              name={`items.${index}.quantity` as const}
+                              control={control}
+                              render={({ field: { value, onChange } }) => (
+                                <QtyInput
+                                  value={Number(value)}
+                                  onChange={(newVal) => {
+                                    onChange(newVal);
+                                    calculateAmount(index);
+                                  }}
+                                  disabled={isLoading}
                                 />
                               )}
                             />
-                          ) : (
-                            <>
-                              <Input
-                                {...register(`items.${index}.bundle_name` as const)}
-                                placeholder="Enter product name manually..."
-                                className={itemErrors?.bundle_name ? "border-destructive ring-1 ring-destructive" : ""}
-                                disabled={isLoading}
-                              />
-                              {itemErrors?.bundle_name && <p className="text-xs text-destructive mt-1">{itemErrors.bundle_name.message}</p>}
-                            </>
-                          )}
-                        </TableCell>
-                        <TableCell className="p-3 align-top">
-                          <Input
-                            {...register(`items.${index}.hsn_code` as const)}
-                            placeholder="HSN Code"
-                            disabled={isLoading}
-                          />
-                        </TableCell>
-                        <TableCell className="p-3 align-top flex justify-center">
-                          <Controller
-                            name={`items.${index}.quantity` as const}
-                            control={control}
-                            render={({ field: { value, onChange } }) => (
-                              <QtyInput
-                                value={Number(value)}
-                                onChange={(newVal) => {
-                                  onChange(newVal);
-                                  calculateAmount(index);
-                                }}
-                                disabled={isLoading}
-                              />
-                            )}
-                          />
-                        </TableCell>
-                        <TableCell className="p-3 align-top">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            {...register(`items.${index}.rate` as const, {
-                              onChange: () => calculateAmount(index)
-                            })}
-                            className={`text-right ${itemErrors?.rate ? 'border-destructive ring-1 ring-destructive' : ''}`}
-                            disabled={isLoading}
-                          />
-                          {itemErrors?.rate && <p className="text-xs text-destructive mt-1">{itemErrors.rate.message}</p>}
-                        </TableCell>
-                        <TableCell className="p-3 align-top">
-                          <Input
-                            type="number"
-                            readOnly
-                            {...register(`items.${index}.amount` as const)}
-                            className="text-right bg-slate-50/80 dark:bg-slate-900/80 font-medium"
-                            disabled={isLoading}
-                          />
-                        </TableCell>
-                        <TableCell className="p-3 align-top text-center">
-                          <Button 
-                            type="button" 
-                            variant="ghost" 
-                            size="icon" 
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-10 w-10 mx-auto"
-                            onClick={() => fields.length > 1 && remove(index)}
-                            disabled={fields.length === 1 || isLoading}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                          </TableCell>
+                          <TableCell className="p-3 align-top">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              {...register(`items.${index}.rate` as const, {
+                                onChange: () => calculateAmount(index)
+                              })}
+                              className={`text-right ${itemErrors?.rate ? 'border-destructive ring-1 ring-destructive' : ''}`}
+                              disabled={isLoading}
+                            />
+                            {itemErrors?.rate && <p className="text-xs text-destructive mt-1">{itemErrors.rate.message}</p>}
+                          </TableCell>
+                          <TableCell className="p-3 align-top">
+                            <Input
+                              type="number"
+                              readOnly
+                              {...register(`items.${index}.amount` as const)}
+                              className="text-right bg-slate-50/80 dark:bg-slate-900/80 font-medium"
+                              disabled={isLoading}
+                            />
+                          </TableCell>
+                          <TableCell className="p-3 align-top text-center">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10 h-10 w-10 mx-auto"
+                              onClick={() => fields.length > 1 && remove(index)}
+                              disabled={fields.length === 1 || isLoading}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
                       );
                     })}
                   </TableBody>
@@ -549,9 +431,9 @@ export function InvoiceForm({ defaultGstRate, initialData, invoiceId, settings }
 
         {/* Right Column: Totals & Actions */}
         <div className="space-y-6">
-          <TotalsCard 
-            control={control} 
-            isLoading={isLoading} 
+          <TotalsCard
+            control={control}
+            isLoading={isLoading}
             isOnline={isOnline}
             invoiceId={invoiceId}
             initialData={initialData}
@@ -585,15 +467,15 @@ function InnerTotals({ control, fieldsLength }: { control: Control<InvoiceSchema
   );
 }
 
-function TotalsCard({ 
-  control, 
-  isLoading, 
-  isOnline, 
-  invoiceId, 
-  initialData, 
-  settings, 
-  onSubmitDraft, 
-  onSubmitFinal 
+function TotalsCard({
+  control,
+  isLoading,
+  isOnline,
+  invoiceId,
+  initialData,
+  settings,
+  onSubmitDraft,
+  onSubmitFinal
 }: any) {
   const router = useRouter();
   const watchAll = useWatch({ control });
@@ -658,7 +540,7 @@ function TotalsCard({
           <span className="text-muted-foreground">Subtotal</span>
           <span className="font-medium">{formatCurrency(subtotal)}</span>
         </div>
-        
+
         {/* Dynamic GST split rows */}
         <div className="space-y-2 pt-2 border-t">
           {customerLocation === "Inside Tamil Nadu" ? (
@@ -684,7 +566,7 @@ function TotalsCard({
           <span>Grand Total</span>
           <span className="text-primary">{formatCurrency(grandTotal)}</span>
         </div>
-        
+
       </CardContent>
       <CardFooter className="flex-col gap-3 pt-4 border-t bg-slate-50 dark:bg-card">
         {!isOnline && (
@@ -693,8 +575,8 @@ function TotalsCard({
             <span>Internet connection required to save invoices</span>
           </div>
         )}
-        <Button 
-          type="button" 
+        <Button
+          type="button"
           className="w-full text-base py-6"
           onClick={onSubmitFinal}
           disabled={isLoading || !isOnline}
@@ -702,9 +584,9 @@ function TotalsCard({
           {isLoading ? 'Saving...' : (invoiceId ? "Update Invoice" : "Create Invoice")}
         </Button>
         <div className="flex w-full gap-3">
-          <Button 
-            type="button" 
-            variant="outline" 
+          <Button
+            type="button"
+            variant="outline"
             className="flex-1"
             onClick={onSubmitDraft}
             disabled={isLoading || !isOnline}
@@ -724,9 +606,9 @@ function TotalsCard({
             </DialogContent>
           </Dialog>
         </div>
-        <Button 
-          type="button" 
-          variant="ghost" 
+        <Button
+          type="button"
+          variant="ghost"
           className="w-full text-muted-foreground"
           onClick={() => router.push('/invoices')}
           disabled={isLoading}

@@ -72,7 +72,9 @@ async function DashboardContent() {
             <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalSales)}</div>
+            <div className="text-lg md:text-2xl font-bold break-all" title={formatCurrency(stats.totalSales)}>
+              {formatCurrency(stats.totalSales)}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
               Across {stats.invoiceCount} invoices
             </p>
@@ -84,7 +86,7 @@ async function DashboardContent() {
             <ArrowUpRight className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+            <div className="text-lg md:text-2xl font-bold text-emerald-600 dark:text-emerald-400 break-all" title={formatCurrency(stats.totalReceived)}>
               {formatCurrency(stats.totalReceived)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -99,7 +101,9 @@ async function DashboardContent() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.customersCount}</div>
+            <div className="text-lg md:text-2xl font-bold break-all" title={stats.customersCount.toString()}>
+              {stats.customersCount}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
               Registered in directory
             </p>

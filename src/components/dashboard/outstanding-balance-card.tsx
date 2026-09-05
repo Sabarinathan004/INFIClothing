@@ -26,7 +26,7 @@ export function OutstandingBalanceCard({ totalOutstanding }: Props) {
           <FileText className="h-4 w-4 text-destructive" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-destructive">
+          <div className="text-lg md:text-2xl font-bold text-destructive break-all" title={formatCurrency(totalOutstanding)}>
             {formatCurrency(totalOutstanding)}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
