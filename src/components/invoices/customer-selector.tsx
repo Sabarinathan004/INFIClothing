@@ -45,6 +45,12 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
     try {
       const result = await fetchAndVerifyGST(gstInput);
       
+      if (!result.success || !result.data) {
+        toast.error(result.error || "Failed to verify GST");
+        setIsVerifying(false);
+        return;
+      }
+
       setValue("customer_name", result.data.name, { shouldValidate: true });
       setValue("customer_address", result.data.address || "", { shouldValidate: true });
       setValue("verification_type", "GST", { shouldValidate: true });
