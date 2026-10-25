@@ -17,8 +17,8 @@ export default function DashboardLayout({
           <MobileNav />
           <Topbar />
         </div>
-        <main className="flex-1 overflow-y-auto overscroll-none bg-slate-50/50 dark:bg-background/95 print:overflow-visible print:bg-white pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-          <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-[1600px] print:p-0 print:max-w-full">
+        <main className="flex-1 overflow-y-auto overscroll-none bg-slate-50/50 dark:bg-background/95 print:overflow-visible print:bg-white pb-28 sm:pb-24 lg:pb-8 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+          <div className="container mx-auto p-3.5 sm:p-5 md:p-6 lg:p-8 max-w-[1600px] print:p-0 print:max-w-full">
             {children}
           </div>
         </main>

@@ -50,30 +50,45 @@ export function PwaRegistry() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [showIOSBanner, setShowIOSBanner] = useState(false);
 
-  // Register service worker
+  // Register service worker (production only)
   useEffect(() => {
-    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      navigator.serviceWorker
-        .register("/sw.js")
-        .then((registration) => {
-          console.log("SW registered: ", registration);
-          
-          // Listen for updates
-          registration.addEventListener("updatefound", () => {
-            const newWorker = registration.installing;
-            if (newWorker) {
-              newWorker.addEventListener("statechange", () => {
-                if (newWorker.state === "activated") {
-                  console.log("New service worker activated");
-                }
-              });
-            }
-          });
-        })
-        .catch((registrationError) => {
-          console.log("SW registration failed: ", registrationError);
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+
+    if (process.env.NODE_ENV === "development") {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const reg of registrations) {
+          reg.unregister();
+          console.log("[PWA] Development mode: unregistered SW", reg);
+        }
+      });
+      if (typeof caches !== "undefined") {
+        caches.keys().then((keys) => {
+          keys.forEach((key) => caches.delete(key));
         });
+      }
+      return;
     }
+
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((registration) => {
+        console.log("SW registered: ", registration);
+        
+        // Listen for updates
+        registration.addEventListener("updatefound", () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener("statechange", () => {
+              if (newWorker.state === "activated") {
+                console.log("New service worker activated");
+              }
+            });
+          }
+        });
+      })
+      .catch((registrationError) => {
+        console.log("SW registration failed: ", registrationError);
+      });
   }, []);
 
   // Check if we should show install banner
@@ -131,7 +146,7 @@ export function PwaRegistry() {
   // Android/Desktop install banner
   if (showInstallBanner) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-[100] p-3 sm:p-4 animate-slide-up">
+      <div className="fixed bottom-20 lg:bottom-4 left-0 right-0 z-[100] p-3 sm:p-4 animate-slide-up">
         <div className="max-w-lg mx-auto bg-slate-900 dark:bg-slate-800 text-white rounded-2xl shadow-2xl border border-slate-700/50 overflow-hidden">
           <div className="flex items-center gap-3 p-4">
             <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
@@ -178,7 +193,7 @@ export function PwaRegistry() {
   // iOS install instructions banner
   if (showIOSBanner) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 z-[100] p-3 sm:p-4 animate-slide-up">
+      <div className="fixed bottom-20 lg:bottom-4 left-0 right-0 z-[100] p-3 sm:p-4 animate-slide-up">
         <div className="max-w-lg mx-auto bg-slate-900 dark:bg-slate-800 text-white rounded-2xl shadow-2xl border border-slate-700/50 overflow-hidden">
           <div className="flex items-start gap-3 p-4">
             <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 shadow-md">

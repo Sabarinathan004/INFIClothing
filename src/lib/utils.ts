@@ -9,11 +9,15 @@ export function cn(...inputs: ClassValue[]) {
  * Format a number as Indian Rupee currency.
  * Uses decimal-safe string formatting.
  */
-export function formatCurrency(amount: number): string {
+export function formatCurrency(
+  amount: number,
+  options?: { compactDecimals?: boolean }
+): string {
+  const isWhole = amount % 1 === 0;
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    minimumFractionDigits: 2,
+    minimumFractionDigits: options?.compactDecimals && isWhole ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(amount);
 }

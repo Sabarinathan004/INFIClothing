@@ -155,7 +155,7 @@ async function resolveProducts(supabase: any, items: any[]) {
         .select("id")
         .ilike("name", item.bundle_name.trim())
         .limit(1);
-        
+
       if (!existingBundles || existingBundles.length === 0) {
         await supabase.from("bundles").insert([{
           name: item.bundle_name.trim(),
@@ -168,144 +168,225 @@ async function resolveProducts(supabase: any, items: any[]) {
   }
 }
 
+// Inside src/actions/invoices.ts -> replace createInvoice with this upgraded version:
 export async function createInvoice(data: InvoiceSchemaType) {
   const supabase = await createClient();
 
-  // Resolve customer (check verification_number for GST, or create new)
-  data.customer_id = await resolveCustomer(supabase, data) || data.customer_id;
-
-  // Auto-save new products
+  data.customer_id = (await resolveCustomer(supabase, data)) || data.customer_id;
   await resolveProducts(supabase, data.items);
 
-  // 1. Generate invoice number
-  const { data: numData, error: numError } = await supabase
-    .rpc("generate_invoice_number", { prefix: "INV" });
+  // 1. Generate prefix based on document type (INV, QUO, DC, PRO)
+  const prefixMap: Record<string, string> = {
+    invoice: "INV",
+    quotation: "QUO",
+    challan: "DC",
+    proforma: "PRO",
+  };
+  const prefix = prefixMap[data.doc_type || "invoice"] || "INV";
 
-  if (numError) {
-    console.error("Error generating invoice number:", numError);
-    throw new Error("Failed to generate invoice number");
-  }
+  const { data: numData, error: numError } = await supabase.rpc("generate_invoice_number", { prefix });
+  if (numError) throw new Error("Failed to generate document number");
 
-  const invoiceNumber = numData;
+  // 2. Calculate totals with extra discount & round-off
+  const rawSubtotal = data.items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const extraDiscount = Number(data.extra_discount || 0);
+  const subtotal = Math.max(0, Math.round((rawSubtotal - extraDiscount) * 100) / 100);
 
-  // 2. Calculate totals with GST split
-  const subtotal = data.items.reduce((sum, item) => sum + item.amount, 0);
   const { cgstRate, sgstRate, igstRate, cgstAmount, sgstAmount, igstAmount, gstAmount } =
     computeGstSplit(subtotal, data.gst_rate, data.customer_location);
-  const grandTotal = subtotal + gstAmount;
 
-  const paymentStatus = data.status === 'draft' ? 'draft' : 'unpaid';
-  const invoiceStatus = 'created';
+  const unroundedGrandTotal = subtotal + gstAmount;
+  const grandTotal = data.auto_round_off ? Math.round(unroundedGrandTotal) : Number(unroundedGrandTotal.toFixed(2));
+  const roundOff = Number((grandTotal - unroundedGrandTotal).toFixed(2));
 
-  // 3. Insert invoice with all snapshot and split fields
-  const { data: invoice, error: invoiceError } = await supabase
+  // 3. Check 1-Tap Instant Settlement Mode
+  const isInstantPaid = data.status !== "draft" && data.settlement_mode && data.settlement_mode !== "credit";
+  const paidAmount = isInstantPaid ? grandTotal : 0;
+  const balanceAmount = isInstantPaid ? 0 : grandTotal;
+  const paymentStatus = data.status === "draft" ? "draft" : isInstantPaid ? "paid" : "unpaid";
+
+  const invoicePayload: any = {
+    doc_type: data.doc_type || "invoice",
+    invoice_number: numData,
+    invoice_date: data.invoice_date,
+    customer_id: data.customer_id,
+    customer_name: data.customer_name,
+    customer_mobile: data.customer_mobile,
+    customer_email: data.customer_email,
+    customer_address: data.customer_address,
+    customer_gst:
+      data.verification_type === "GST" ? data.verification_number?.trim().toUpperCase() || "" : "",
+    verification_type: data.verification_type || null,
+    verification_number: data.verification_number?.trim().toUpperCase() || null,
+    customer_location: data.customer_location,
+    is_tax_inclusive: Boolean(data.is_tax_inclusive),
+    subtotal,
+    extra_discount: extraDiscount,
+    round_off: roundOff,
+    gst_rate: data.gst_rate,
+    gst_amount: gstAmount,
+    cgst_rate: cgstRate,
+    sgst_rate: sgstRate,
+    igst_rate: igstRate,
+    cgst_amount: cgstAmount,
+    sgst_amount: sgstAmount,
+    igst_amount: igstAmount,
+    grand_total: grandTotal,
+    paid_amount: paidAmount,
+    balance_amount: balanceAmount,
+    payment_status: paymentStatus,
+    status: data.status === "draft" ? "draft" : "created",
+    notes: data.notes,
+    transport_mode: data.transport_mode || null,
+    shipping_address: data.shipping_address || null,
+    no_of_bundles: data.no_of_bundles ? Number(data.no_of_bundles) : null,
+    vehicle_number: data.vehicle_number || null,
+    eway_bill_number: data.eway_bill_number || null,
+  };
+
+  let invoice: any = null;
+  const { data: createdInvoice, error: invoiceError } = await supabase
     .from("invoices")
-    .insert([{
-      invoice_number: invoiceNumber,
-      invoice_date: data.invoice_date,
-      customer_id: data.customer_id,
-
-      // Customer snapshot
-      customer_name: data.customer_name,
-      customer_mobile: data.customer_mobile,
-      customer_email: data.customer_email,
-      customer_address: data.customer_address,
-      // Legacy field — keep in sync
-      customer_gst: data.verification_type === 'GST'
-        ? data.verification_number?.trim().toUpperCase() || ''
-        : '',
-
-      // Verification snapshot
-      verification_type: data.verification_type || null,
-      verification_number: data.verification_number?.trim().toUpperCase() || null,
-
-      // Location
-      customer_location: data.customer_location,
-
-      // Totals
-      subtotal,
-      gst_rate: data.gst_rate,
-      gst_amount: gstAmount,
-      cgst_rate: cgstRate,
-      sgst_rate: sgstRate,
-      igst_rate: igstRate,
-      cgst_amount: cgstAmount,
-      sgst_amount: sgstAmount,
-      igst_amount: igstAmount,
-      grand_total: grandTotal,
-
-      paid_amount: 0,
-      balance_amount: grandTotal,
-      payment_status: paymentStatus,
-      status: invoiceStatus,
-      notes: data.notes,
-      transport_mode: data.transport_mode || null,
-      shipping_address: data.shipping_address || null,
-      no_of_bundles: data.no_of_bundles ? Number(data.no_of_bundles) : null,
-    }])
+    .insert([invoicePayload])
     .select()
     .single();
 
   if (invoiceError) {
-    console.error("Error creating invoice:", invoiceError);
-    throw new Error(invoiceError.message);
+    console.warn("Primary invoice insert failed, attempting legacy fallback:", invoiceError.message);
+    const legacyPayload = { ...invoicePayload };
+    delete legacyPayload.doc_type;
+    delete legacyPayload.is_tax_inclusive;
+    delete legacyPayload.extra_discount;
+    delete legacyPayload.round_off;
+    delete legacyPayload.vehicle_number;
+    delete legacyPayload.eway_bill_number;
+
+    const retry = await supabase.from("invoices").insert([legacyPayload]).select().single();
+    if (retry.error) {
+      throw new Error(retry.error.message || "Failed to create invoice");
+    }
+    invoice = retry.data;
+  } else {
+    invoice = createdInvoice;
   }
 
-  // 4. Insert items (bundle snapshots)
+  // 4. Insert line items
   const itemsToInsert = data.items.map((item, index) => ({
     invoice_id: invoice.id,
     bundle_name: item.bundle_name,
     hsn_code: item.hsn_code || "",
+    unit: item.unit || "BDL",
     quantity: item.quantity,
     rate: item.rate,
+    discount_percent: item.discount_percent || 0,
+    discount_amount: item.discount_amount || 0,
+    taxable_amount: item.amount,
+    gst_rate: item.gst_rate ?? data.gst_rate,
+    gst_amount: item.gst_amount || 0,
     amount: item.amount,
     sort_order: index,
   }));
 
-  const { error: itemsError } = await supabase
-    .from("invoice_items")
-    .insert(itemsToInsert);
-
+  const { error: itemsError } = await supabase.from("invoice_items").insert(itemsToInsert);
   if (itemsError) {
-    console.error("Error creating invoice items:", itemsError);
-    throw new Error("Failed to save invoice items");
+    console.warn("Primary items insert failed, attempting legacy fallback:", itemsError.message);
+    const legacyItems = itemsToInsert.map((i) => ({
+      invoice_id: i.invoice_id,
+      bundle_name: i.bundle_name,
+      hsn_code: i.hsn_code,
+      quantity: i.quantity,
+      rate: i.rate,
+      amount: i.amount,
+      sort_order: i.sort_order,
+    }));
+    const retryItems = await supabase.from("invoice_items").insert(legacyItems);
+    if (retryItems.error) throw new Error("Failed to save invoice items");
+  }
+
+  // 5. Stock deduction for final tax invoices
+  if ((!data.doc_type || data.doc_type === "invoice") && data.status !== "draft") {
+    for (const item of data.items) {
+      if (item.bundle_name?.trim()) {
+        try {
+          const { data: bList } = await supabase
+            .from("bundles")
+            .select("id, current_stock")
+            .ilike("name", item.bundle_name.trim())
+            .limit(1);
+          if (bList && bList.length > 0 && typeof bList[0].current_stock === "number") {
+            await supabase
+              .from("bundles")
+              .update({
+                current_stock: Math.max(0, bList[0].current_stock - Number(item.quantity || 0)),
+              })
+              .eq("id", bList[0].id);
+          }
+        } catch (err) {
+          console.warn("Stock deduction skipped:", err);
+        }
+      }
+    }
+  }
+
+  // 6. Auto-record payment row if settled via 1-Tap Paid Cash / Paid UPI / Bank Transfer
+  if (isInstantPaid && grandTotal > 0) {
+    await supabase.from("payments").insert([
+      {
+        invoice_id: invoice.id,
+        amount: grandTotal,
+        payment_date: data.invoice_date,
+        payment_method: data.settlement_mode,
+        reference_number: "Instant Settlement on Bill Creation",
+      },
+    ]);
   }
 
   revalidatePath("/invoices");
-  if (data.customer_id) {
-    revalidatePath(`/customers/${data.customer_id}`);
-  }
-  
+  revalidatePath("/dashboard");
+  if (data.customer_id) revalidatePath(`/customers/${data.customer_id}`);
+
   return { success: true, id: invoice.id };
 }
 
 export async function duplicateInvoice(id: string) {
   const invoice = await getInvoiceById(id);
-  
-  // Convert to form data, removing ids and setting status to unpaid
+
   const invoiceData: InvoiceSchemaType = {
-    invoice_date: new Date().toISOString().split('T')[0],
+    doc_type: invoice.doc_type || "invoice",
+    is_tax_inclusive: Boolean(invoice.is_tax_inclusive),
+    extra_discount: invoice.extra_discount || 0,
+    round_off: invoice.round_off || 0,
+    auto_round_off: true,
+    settlement_mode: "credit",
+    vehicle_number: invoice.vehicle_number || "",
+    eway_bill_number: invoice.eway_bill_number || "",
+    invoice_date: new Date().toISOString().split("T")[0],
     customer_id: invoice.customer_id,
     customer_name: invoice.customer_name,
     customer_mobile: invoice.customer_mobile,
     customer_email: invoice.customer_email,
     customer_address: invoice.customer_address,
-    verification_type: invoice.verification_type || 'GST',
-    verification_number: invoice.verification_number || '',
-    customer_location: invoice.customer_location || 'Inside Tamil Nadu',
+    verification_type: invoice.verification_type || "GST",
+    verification_number: invoice.verification_number || "",
+    customer_location: invoice.customer_location || "Inside Tamil Nadu",
     gst_rate: invoice.gst_rate,
     notes: invoice.notes,
-    status: 'unpaid',
-    transport_mode: invoice.transport_mode || '',
-    shipping_address: invoice.shipping_address || '',
-    no_of_bundles: invoice.no_of_bundles || '',
+    status: "unpaid",
+    transport_mode: invoice.transport_mode || "",
+    shipping_address: invoice.shipping_address || "",
+    no_of_bundles: invoice.no_of_bundles || "",
     items: invoice.items.map((item: any) => ({
       bundle_name: item.bundle_name,
       hsn_code: item.hsn_code || "",
+      unit: item.unit || "BDL",
       quantity: item.quantity,
       rate: item.rate,
+      discount_percent: item.discount_percent || 0,
+      discount_amount: item.discount_amount || 0,
+      gst_rate: item.gst_rate,
+      gst_amount: item.gst_amount || 0,
       amount: item.amount,
-    }))
+    })),
   };
 
   return createInvoice(invoiceData);
@@ -314,74 +395,83 @@ export async function duplicateInvoice(id: string) {
 export async function updateInvoice(id: string, data: InvoiceSchemaType) {
   const supabase = await createClient();
 
-  // Resolve customer (check verification_number for GST, or create new)
-  data.customer_id = await resolveCustomer(supabase, data) || data.customer_id;
-
-  // Auto-save new products
+  data.customer_id = (await resolveCustomer(supabase, data)) || data.customer_id;
   await resolveProducts(supabase, data.items);
 
   const invoice = await getInvoiceById(id);
-  const subtotal = data.items.reduce((sum, item) => sum + item.amount, 0);
+  const rawSubtotal = data.items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const extraDiscount = Number(data.extra_discount || 0);
+  const subtotal = Math.max(0, Math.round((rawSubtotal - extraDiscount) * 100) / 100);
+
   const { cgstRate, sgstRate, igstRate, cgstAmount, sgstAmount, igstAmount, gstAmount } =
     computeGstSplit(subtotal, data.gst_rate, data.customer_location);
-  const grandTotal = subtotal + gstAmount;
+
+  const unroundedGrandTotal = subtotal + gstAmount;
+  const grandTotal = data.auto_round_off ? Math.round(unroundedGrandTotal) : Number(unroundedGrandTotal.toFixed(2));
+  const roundOff = Number((grandTotal - unroundedGrandTotal).toFixed(2));
 
   const balanceAmount = grandTotal - invoice.paid_amount;
-  let paymentStatus = 'unpaid';
-  if (data.status === 'draft') {
-    paymentStatus = 'draft';
+  let paymentStatus = "unpaid";
+  if (data.status === "draft") {
+    paymentStatus = "draft";
   } else if (balanceAmount <= 0 && grandTotal > 0) {
-    paymentStatus = 'paid';
+    paymentStatus = "paid";
   } else if (invoice.paid_amount > 0) {
-    paymentStatus = 'partial';
+    paymentStatus = "partial";
   }
-  
-  const invoiceStatus = data.status === 'draft' ? 'draft' : 'created';
 
-  const { error: invoiceError } = await supabase
-    .from("invoices")
-    .update({
-      invoice_date: data.invoice_date,
-      customer_id: data.customer_id,
+  const invoiceStatus = data.status === "draft" ? "draft" : "created";
 
-      // Customer snapshot
-      customer_name: data.customer_name,
-      customer_mobile: data.customer_mobile,
-      customer_email: data.customer_email,
-      customer_address: data.customer_address,
-      customer_gst: data.verification_type === 'GST'
-        ? data.verification_number?.trim().toUpperCase() || ''
-        : '',
+  const updatePayload: any = {
+    invoice_date: data.invoice_date,
+    customer_id: data.customer_id,
+    customer_name: data.customer_name,
+    customer_mobile: data.customer_mobile,
+    customer_email: data.customer_email,
+    customer_address: data.customer_address,
+    customer_gst:
+      data.verification_type === "GST" ? data.verification_number?.trim().toUpperCase() || "" : "",
+    verification_type: data.verification_type || null,
+    verification_number: data.verification_number?.trim().toUpperCase() || null,
+    customer_location: data.customer_location,
+    subtotal,
+    extra_discount: extraDiscount,
+    round_off: roundOff,
+    gst_rate: data.gst_rate,
+    gst_amount: gstAmount,
+    cgst_rate: cgstRate,
+    sgst_rate: sgstRate,
+    igst_rate: igstRate,
+    cgst_amount: cgstAmount,
+    sgst_amount: sgstAmount,
+    igst_amount: igstAmount,
+    grand_total: grandTotal,
+    balance_amount: balanceAmount,
+    payment_status: paymentStatus,
+    status: invoiceStatus,
+    notes: data.notes,
+    transport_mode: data.transport_mode || null,
+    shipping_address: data.shipping_address || null,
+    no_of_bundles: data.no_of_bundles ? Number(data.no_of_bundles) : null,
+    doc_type: data.doc_type || invoice.doc_type || "invoice",
+    is_tax_inclusive: Boolean(data.is_tax_inclusive),
+    vehicle_number: data.vehicle_number || null,
+    eway_bill_number: data.eway_bill_number || null,
+  };
 
-      // Verification snapshot
-      verification_type: data.verification_type || null,
-      verification_number: data.verification_number?.trim().toUpperCase() || null,
-
-      // Location
-      customer_location: data.customer_location,
-
-      // Totals
-      subtotal,
-      gst_rate: data.gst_rate,
-      gst_amount: gstAmount,
-      cgst_rate: cgstRate,
-      sgst_rate: sgstRate,
-      igst_rate: igstRate,
-      cgst_amount: cgstAmount,
-      sgst_amount: sgstAmount,
-      igst_amount: igstAmount,
-      grand_total: grandTotal,
-      balance_amount: balanceAmount,
-      payment_status: paymentStatus,
-      status: invoiceStatus,
-      notes: data.notes,
-      transport_mode: data.transport_mode || null,
-      shipping_address: data.shipping_address || null,
-      no_of_bundles: data.no_of_bundles ? Number(data.no_of_bundles) : null,
-    })
-    .eq("id", id);
-
-  if (invoiceError) throw new Error(invoiceError.message);
+  const { error: invoiceError } = await supabase.from("invoices").update(updatePayload).eq("id", id);
+  if (invoiceError) {
+    console.warn("Update failed, attempting legacy fallback:", invoiceError.message);
+    const legacyPayload = { ...updatePayload };
+    delete legacyPayload.doc_type;
+    delete legacyPayload.is_tax_inclusive;
+    delete legacyPayload.extra_discount;
+    delete legacyPayload.round_off;
+    delete legacyPayload.vehicle_number;
+    delete legacyPayload.eway_bill_number;
+    const retry = await supabase.from("invoices").update(legacyPayload).eq("id", id);
+    if (retry.error) throw new Error(retry.error.message);
+  }
 
   await supabase.from("invoice_items").delete().eq("invoice_id", id);
 
@@ -389,39 +479,124 @@ export async function updateInvoice(id: string, data: InvoiceSchemaType) {
     invoice_id: id,
     bundle_name: item.bundle_name,
     hsn_code: item.hsn_code || "",
+    unit: item.unit || "BDL",
     quantity: item.quantity,
     rate: item.rate,
+    discount_percent: item.discount_percent || 0,
+    discount_amount: item.discount_amount || 0,
+    taxable_amount: item.amount,
+    gst_rate: item.gst_rate ?? data.gst_rate,
+    gst_amount: item.gst_amount || 0,
     amount: item.amount,
     sort_order: index,
   }));
 
   const { error: itemsError } = await supabase.from("invoice_items").insert(itemsToInsert);
-  if (itemsError) throw new Error("Failed to update invoice items");
+  if (itemsError) {
+    const legacyItems = itemsToInsert.map((i) => ({
+      invoice_id: i.invoice_id,
+      bundle_name: i.bundle_name,
+      hsn_code: i.hsn_code,
+      quantity: i.quantity,
+      rate: i.rate,
+      amount: i.amount,
+      sort_order: i.sort_order,
+    }));
+    const retryItems = await supabase.from("invoice_items").insert(legacyItems);
+    if (retryItems.error) throw new Error("Failed to update invoice items");
+  }
 
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${id}`);
   if (data.customer_id) {
     revalidatePath(`/customers/${data.customer_id}`);
   }
-  
+
   return { success: true, id };
+}
+
+export async function convertQuotationToInvoice(id: string) {
+  const supabase = await createClient();
+
+  const { data: doc, error: fetchErr } = await supabase
+    .from("invoices")
+    .select("*, invoice_items(*)")
+    .eq("id", id)
+    .single();
+
+  if (fetchErr || !doc) {
+    throw new Error("Document not found");
+  }
+
+  if (doc.doc_type === "invoice") {
+    throw new Error("Document is already a Tax Invoice");
+  }
+
+  // Generate a new Tax Invoice number with 'INV' prefix
+  const { data: invNum, error: numError } = await supabase.rpc("generate_invoice_number", { prefix: "INV" });
+  if (numError) throw new Error("Failed to generate Tax Invoice number");
+
+  // Update document to Tax Invoice
+  const { error: updateErr } = await supabase
+    .from("invoices")
+    .update({
+      doc_type: "invoice",
+      invoice_number: invNum,
+      invoice_date: new Date().toISOString().split("T")[0],
+    })
+    .eq("id", id);
+
+  if (updateErr) {
+    console.error("Error converting to invoice:", updateErr);
+    throw new Error(updateErr.message || "Failed to convert document");
+  }
+
+  // Deduct quantity from bundles.current_stock for items
+  if (doc.invoice_items && Array.isArray(doc.invoice_items)) {
+    for (const item of doc.invoice_items) {
+      if (item.bundle_name?.trim()) {
+        try {
+          const { data: bList } = await supabase
+            .from("bundles")
+            .select("id, current_stock")
+            .ilike("name", item.bundle_name.trim())
+            .limit(1);
+          if (bList && bList.length > 0 && typeof bList[0].current_stock === "number") {
+            await supabase
+              .from("bundles")
+              .update({
+                current_stock: Math.max(0, bList[0].current_stock - Number(item.quantity || 0)),
+              })
+              .eq("id", bList[0].id);
+          }
+        } catch (e) {
+          console.warn("Stock deduction skipped during quotation conversion:", e);
+        }
+      }
+    }
+  }
+
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${id}`);
+  if (doc.customer_id) {
+    revalidatePath(`/customers/${doc.customer_id}`);
+  }
+
+  return { id };
 }
 
 export async function deleteInvoice(id: string) {
   const supabase = await createClient();
 
-  // Retrieve customer_id if exists for cache revalidation
   const { data: invoice } = await supabase
     .from("invoices")
     .select("customer_id")
     .eq("id", id)
     .maybeSingle();
 
-  // Delete associated payments and items
   await supabase.from("payments").delete().eq("invoice_id", id);
   await supabase.from("invoice_items").delete().eq("invoice_id", id);
 
-  // Delete the invoice record
   const { error } = await supabase.from("invoices").delete().eq("id", id);
 
   if (error) {
@@ -449,15 +624,15 @@ export async function cancelInvoice(id: string) {
     throw new Error("Invoice not found");
   }
 
-  if (invoice.payment_status === 'cancelled') {
-     throw new Error("Invoice is already cancelled");
+  if (invoice.payment_status === "cancelled") {
+    throw new Error("Invoice is already cancelled");
   }
-  
+
   const { error } = await supabase
     .from("invoices")
     .update({
-      payment_status: 'cancelled',
-      status: 'cancelled'
+      payment_status: "cancelled",
+      status: "cancelled",
     })
     .eq("id", id);
 
@@ -470,4 +645,5 @@ export async function cancelInvoice(id: string) {
   }
   return { success: true };
 }
+
 

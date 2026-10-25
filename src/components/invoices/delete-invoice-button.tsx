@@ -9,14 +9,25 @@ import { toast } from "sonner";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
+import { cn } from "@/lib/utils";
+
 interface DeleteInvoiceButtonProps {
   id: string;
   variant?: "ghost" | "destructive" | "outline" | "default";
   size?: "default" | "sm" | "lg" | "icon";
   redirectAfterDelete?: boolean;
+  className?: string;
+  showText?: boolean;
 }
 
-export function DeleteInvoiceButton({ id, variant = "ghost", size = "icon", redirectAfterDelete = false }: DeleteInvoiceButtonProps) {
+export function DeleteInvoiceButton({
+  id,
+  variant = "ghost",
+  size = "icon",
+  redirectAfterDelete = false,
+  className,
+  showText = false,
+}: DeleteInvoiceButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
@@ -49,12 +60,19 @@ export function DeleteInvoiceButton({ id, variant = "ghost", size = "icon", redi
         <Button
           variant={variant}
           size={size}
-          className={variant === "ghost" ? "text-destructive hover:text-destructive hover:bg-destructive/10" : ""}
+          className={cn(
+            variant === "ghost" ? "text-destructive hover:text-destructive hover:bg-destructive/10" : "",
+            !showText && "p-0",
+            className
+          )}
           disabled={isDeleting || !isOnline}
           title={!isOnline ? "Offline: Cannot delete invoice" : "Delete Invoice"}
         >
-          <Trash2 className="h-4 w-4" />
-          {variant !== "ghost" && size !== "icon" && <span className="ml-2 hidden sm:inline">Delete</span>}
+          <Trash2 className="h-3.5 w-3.5 shrink-0" />
+          {showText && <span>Delete</span>}
+          {variant !== "ghost" && size !== "icon" && !showText && (
+            <span className="ml-2 hidden sm:inline">Delete</span>
+          )}
         </Button>
       </DialogTrigger>
       <DialogContent>

@@ -34,10 +34,10 @@ export async function searchBundles(query: string) {
 
   let request = supabase
     .from("bundles")
-    .select("id, name, hsn_code, default_price")
+    .select("id, name, hsn_code, unit, default_price, mrp, gst_rate, current_stock")
     .eq("is_active", true)
     .order("name", { ascending: true })
-    .limit(20);
+    .limit(25);
 
   if (query && query.trim().length > 0) {
     request = request.or(`name.ilike.%${query}%,hsn_code.ilike.%${query}%`);
@@ -45,22 +45,43 @@ export async function searchBundles(query: string) {
 
   const { data, error } = await request;
 
-  if (error) return [];
-  return data;
+  if (error) {
+    // Fallback without newer columns if migration pending
+    const fallback = await supabase
+      .from("bundles")
+      .select("id, name, hsn_code, default_price")
+      .eq("is_active", true)
+      .order("name", { ascending: true })
+      .limit(25);
+
+    return fallback.data || [];
+  }
+  return data || [];
 }
 
 export async function createBundle(data: BundleSchemaType) {
   const supabase = await createClient();
 
-  const { data: newBundle, error } = await supabase
+  let { data: newBundle, error } = await supabase
     .from("bundles")
     .insert([data])
     .select()
     .single();
 
   if (error) {
-    console.error("Error creating bundle:", error);
-    throw new Error(error.message);
+    // Defensive retry with base columns
+    const fallbackData = {
+      name: data.name,
+      hsn_code: data.hsn_code,
+      default_price: data.default_price,
+      is_active: data.is_active,
+    };
+    const retry = await supabase.from("bundles").insert([fallbackData]).select().single();
+    if (retry.error) {
+      console.error("Error creating bundle:", retry.error);
+      throw new Error(retry.error.message);
+    }
+    newBundle = retry.data;
   }
 
   revalidatePath("/bundles");
@@ -70,7 +91,7 @@ export async function createBundle(data: BundleSchemaType) {
 export async function updateBundle(id: string, data: BundleSchemaType) {
   const supabase = await createClient();
 
-  const { data: updatedBundle, error } = await supabase
+  let { data: updatedBundle, error } = await supabase
     .from("bundles")
     .update(data)
     .eq("id", id)
@@ -78,8 +99,18 @@ export async function updateBundle(id: string, data: BundleSchemaType) {
     .single();
 
   if (error) {
-    console.error(`Error updating bundle ${id}:`, error);
-    throw new Error(error.message);
+    const fallbackData = {
+      name: data.name,
+      hsn_code: data.hsn_code,
+      default_price: data.default_price,
+      is_active: data.is_active,
+    };
+    const retry = await supabase.from("bundles").update(fallbackData).eq("id", id).select().single();
+    if (retry.error) {
+      console.error(`Error updating bundle ${id}:`, retry.error);
+      throw new Error(retry.error.message);
+    }
+    updatedBundle = retry.data;
   }
 
   revalidatePath("/bundles");

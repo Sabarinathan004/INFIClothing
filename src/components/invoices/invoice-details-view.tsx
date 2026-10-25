@@ -187,7 +187,15 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
           {/* ─── Row 2: TAX INVOICE title bar ─── */}
           <tr>
             <td colSpan={6} className="border border-black text-center py-1.5 bg-gray-100">
-              <span className="text-sm font-extrabold tracking-[0.3em] uppercase">Tax Invoice</span>
+              <span className="text-sm font-extrabold tracking-[0.3em] uppercase">
+                {invoice.doc_type === 'quotation' 
+                  ? 'Quotation' 
+                  : invoice.doc_type === 'challan' 
+                  ? 'Delivery Challan' 
+                  : invoice.doc_type === 'proforma' 
+                  ? 'Proforma Invoice' 
+                  : 'Tax Invoice'}
+              </span>
               <span className="float-right pr-3 text-[10px] italic text-gray-500">Original Copy</span>
             </td>
           </tr>
@@ -199,7 +207,7 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
                 <tbody>
                   <tr>
                     <td className="border-r border-black px-3 py-1.5 text-xs w-1/2">
-                      <span className="font-semibold">Invoice No:</span>{" "}
+                      <span className="font-semibold">{invoice.doc_type === 'quotation' ? 'Quotation No:' : invoice.doc_type === 'challan' ? 'Challan No:' : 'Invoice No:'}</span>{" "}
                       <span className="font-bold text-black">{invoice.invoice_number}</span>
                     </td>
                     <td className="px-3 py-1.5 text-xs w-1/2 text-right">
@@ -257,7 +265,17 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
                           <span className="font-semibold">Bundles:</span> {invoice.no_of_bundles}
                         </div>
                       )}
-                      {!invoice.shipping_address && !invoice.transport_mode && !invoice.no_of_bundles && (
+                      {invoice.vehicle_number && (
+                        <div className="text-[10px] mt-0.5">
+                          <span className="font-semibold">Vehicle No:</span> {invoice.vehicle_number}
+                        </div>
+                      )}
+                      {invoice.eway_bill_number && (
+                        <div className="text-[10px] mt-0.5">
+                          <span className="font-semibold">E-Way Bill:</span> {invoice.eway_bill_number}
+                        </div>
+                      )}
+                      {!invoice.shipping_address && !invoice.transport_mode && !invoice.no_of_bundles && !invoice.vehicle_number && !invoice.eway_bill_number && (
                         <div className="text-[10px] text-gray-400 italic">—</div>
                       )}
                     </td>
@@ -272,7 +290,7 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
             <td className="border border-black px-2 py-1.5 text-center font-bold text-xs w-[40px]">S.No</td>
             <td className="border border-black px-2 py-1.5 font-bold text-xs">Particulars</td>
             <td className="border border-black px-2 py-1.5 text-center font-bold text-xs w-[80px]">HSN/SAC</td>
-            <td className="border border-black px-2 py-1.5 text-center font-bold text-xs w-[50px]">Qty</td>
+            <td className="border border-black px-2 py-1.5 text-center font-bold text-xs w-[60px]">Qty</td>
             <td className="border border-black px-2 py-1.5 text-right font-bold text-xs w-[90px]">Rate</td>
             <td className="border border-black px-2 py-1.5 text-right font-bold text-xs w-[100px]">Amount</td>
           </tr>
@@ -283,9 +301,9 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
               <td className="border border-black px-2 py-1.5 text-center text-xs">{index + 1}</td>
               <td className="border border-black px-2 py-1.5 text-xs font-medium">{item.bundle_name}</td>
               <td className="border border-black px-2 py-1.5 text-center text-xs">{item.hsn_code || "—"}</td>
-              <td className="border border-black px-2 py-1.5 text-center text-xs">{item.quantity}</td>
+              <td className="border border-black px-2 py-1.5 text-center text-xs">{item.quantity} {item.unit || ""}</td>
               <td className="border border-black px-2 py-1.5 text-right text-xs">{formatCurrency(item.rate)}</td>
-              <td className="border border-black px-2 py-1.5 text-right text-xs">{formatCurrency(item.amount)}</td>
+              <td className="border border-black px-2 py-1.5 text-right text-xs">{formatCurrency(item.taxable_amount || item.amount)}</td>
             </tr>
           ))}
 
@@ -307,9 +325,21 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
               Sub Total
             </td>
             <td className="border border-black px-2 py-1 text-right text-xs font-semibold">
-              {formatCurrency(invoice.subtotal)}
+              {formatCurrency(invoice.subtotal + (Number(invoice.extra_discount) || 0))}
             </td>
           </tr>
+
+          {/* ─── Extra Discount Row ─── */}
+          {Number(invoice.extra_discount) > 0 && (
+            <tr>
+              <td colSpan={5} className="border border-black px-2 py-1 text-right text-xs font-semibold text-emerald-700">
+                Discount
+              </td>
+              <td className="border border-black px-2 py-1 text-right text-xs text-emerald-700 font-semibold">
+                - {formatCurrency(invoice.extra_discount)}
+              </td>
+            </tr>
+          )}
 
           {/* ─── GST rows (CGST+SGST or IGST) ─── */}
           <GstSummaryRows invoice={invoice} />

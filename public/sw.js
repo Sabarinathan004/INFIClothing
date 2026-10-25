@@ -71,6 +71,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Skip localhost, dev servers, HMR, Turbopack, and Next.js dynamic chunks
+  if (
+    url.includes('localhost') ||
+    url.includes('127.0.0.1') ||
+    url.includes('turbopack') ||
+    url.includes('webpack') ||
+    url.includes('hot-update') ||
+    url.includes('/_next/static/chunks/')
+  ) {
+    return;
+  }
+
   // Strategy 1: Cache-first for static assets (JS, CSS, fonts, images)
   if (isStaticAsset(url)) {
     event.respondWith(

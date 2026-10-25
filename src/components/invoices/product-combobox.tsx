@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus, Package } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Bundle } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,6 @@ interface ProductComboboxProps {
   value: string;
   onChange: (value: string) => void;
   onSelect: (bundle: Bundle) => void;
-  onCreateCustom?: (name: string) => void;
   placeholder?: string;
   disabled?: boolean;
   hasError?: boolean;
@@ -38,8 +37,7 @@ export function ProductCombobox({
   value,
   onChange,
   onSelect,
-  onCreateCustom,
-  placeholder = "Select a product...",
+  placeholder = "Search bundle or type custom name...",
   disabled = false,
   hasError = false,
   className,
@@ -50,7 +48,7 @@ export function ProductCombobox({
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const debouncedSearch = useDebounce(search, 250);
+  const debouncedSearch = useDebounce(search, 200);
 
   useEffect(() => {
     async function fetchBundles() {
@@ -72,17 +70,35 @@ export function ProductCombobox({
     }
   }, [debouncedSearch, open]);
 
-  // If value is set but search results don't contain it, we still show the value in the trigger
+  const handleSelectCustom = (customName: string) => {
+    const clean = customName.trim();
+    if (!clean) return;
+    onChange(clean);
+    onSelect({
+      id: "",
+      name: clean,
+      hsn_code: "",
+      unit: "BDL",
+      default_price: 0,
+      is_active: true,
+      created_at: "",
+      updated_at: "",
+    });
+    setOpen(false);
+    setSearch("");
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          type="button"
           variant="outline"
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
           className={cn(
-            "w-full justify-between font-normal bg-background px-3",
+            "w-full justify-between font-normal bg-background px-3 h-10 text-left",
             !value && "text-muted-foreground",
             hasError && "border-destructive focus-visible:ring-destructive",
             Icon && "pl-9",
@@ -92,38 +108,35 @@ export function ProductCombobox({
           {Icon && (
             <Icon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           )}
-          <span className="truncate">{value || placeholder}</span>
+          <span className="truncate font-semibold text-foreground text-sm">
+            {value || placeholder}
+          </span>
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+      <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[280px] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput 
-            placeholder="Search products..." 
+            placeholder="Type product name or search..." 
             value={search}
             onValueChange={setSearch}
+            className="h-10 text-sm"
           />
-          <CommandList>
-            <CommandEmpty className="py-6 text-center text-sm">
-              <p className="text-muted-foreground mb-3">
-                {isLoading ? "Searching..." : "No products found."}
+          <CommandList className="max-h-64">
+            <CommandEmpty className="py-4 text-center text-sm px-3">
+              <p className="text-muted-foreground mb-2 text-xs">
+                {isLoading ? "Searching bundles..." : "No existing product matches."}
               </p>
               {search && !isLoading && (
                 <Button 
                   size="sm"
-                  variant="secondary"
-                  className="w-[80%] mx-auto"
-                  onClick={() => {
-                    onChange(search);
-                    if (onCreateCustom) {
-                      onCreateCustom(search);
-                    }
-                    setOpen(false);
-                    setSearch("");
-                  }}
+                  type="button"
+                  variant="default"
+                  className="w-full text-xs font-bold"
+                  onClick={() => handleSelectCustom(search)}
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Use "{search}"
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Use custom product "{search}"
                 </Button>
               )}
             </CommandEmpty>
@@ -138,16 +151,27 @@ export function ProductCombobox({
                     setOpen(false);
                     setSearch("");
                   }}
-                  className="flex items-center justify-between py-2.5 cursor-pointer"
+                  className="flex items-center justify-between py-2 px-3 cursor-pointer hover:bg-accent"
                 >
-                  <div>
-                    <p className="font-medium text-slate-800 dark:text-slate-200">{bundle.name}</p>
-                    {bundle.hsn_code && (
-                      <p className="text-xs text-muted-foreground">HSN: {bundle.hsn_code}</p>
-                    )}
+                  <div className="min-w-0 pr-2">
+                    <p className="font-bold text-sm text-foreground truncate">{bundle.name}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                      {bundle.hsn_code && <span>HSN: {bundle.hsn_code}</span>}
+                      {bundle.unit && <span>• {bundle.unit}</span>}
+                      {typeof bundle.current_stock === 'number' && (
+                        <span className={cn(
+                          "px-1.5 py-0.2 rounded text-[10px] font-semibold",
+                          bundle.current_stock > 10 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                        )}>
+                          Stock: {bundle.current_stock}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-primary">{formatCurrency(bundle.default_price)}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-bold text-sm text-indigo-600 dark:text-indigo-400">
+                      {formatCurrency(bundle.default_price)}
+                    </span>
                     <Check
                       className={cn(
                         "h-4 w-4 text-primary",
@@ -158,21 +182,14 @@ export function ProductCombobox({
                 </CommandItem>
               ))}
               
-              {search && !isLoading && !bundles.find(b => b.name.toLowerCase() === search.toLowerCase()) && (
+              {search && !isLoading && !bundles.some(b => b.name.toLowerCase() === search.toLowerCase()) && (
                 <CommandItem
                   value={search}
-                  onSelect={() => {
-                    onChange(search);
-                    if (onCreateCustom) {
-                      onCreateCustom(search);
-                    }
-                    setOpen(false);
-                    setSearch("");
-                  }}
-                  className="flex items-center py-2.5 text-primary font-medium cursor-pointer border-t mt-1 pt-2"
+                  onSelect={() => handleSelectCustom(search)}
+                  className="flex items-center py-2.5 px-3 text-indigo-600 dark:text-indigo-400 font-bold text-xs cursor-pointer border-t"
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  Create "{search}"
+                  Add "{search}" as new product
                 </CommandItem>
               )}
             </CommandGroup>

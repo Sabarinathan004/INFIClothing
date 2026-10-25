@@ -37,20 +37,20 @@ export default function DashboardPage() {
 function DashboardSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[1, 2, 3, 4].map((i) => (
-          <Card key={i}>
-            <CardHeader className="pb-2">
-              <Skeleton className="h-4 w-1/2" />
+          <Card key={i} className="p-0 overflow-hidden">
+            <CardHeader className="p-3.5 sm:p-5 pb-1 sm:pb-2">
+              <Skeleton className="h-3.5 w-1/2" />
             </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-3/4 mb-1" />
+            <CardContent className="p-3.5 sm:p-5 pt-0">
+              <Skeleton className="h-6 sm:h-8 w-3/4 mb-1" />
               <Skeleton className="h-3 w-1/2" />
             </CardContent>
           </Card>
         ))}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mt-6 sm:mt-8">
         <Skeleton className="h-64 w-full rounded-xl" />
         <Skeleton className="h-64 w-full rounded-xl" />
       </div>
@@ -65,126 +65,177 @@ async function DashboardContent() {
     <>
       {stats.error && <ErrorAlert error={stats.error} />}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-            <IndianRupee className="h-4 w-4 text-muted-foreground" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* 1. Total Sales */}
+        <Card className="p-0 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3.5 sm:p-5 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate pr-1">Total Sales</CardTitle>
+            <IndianRupee className="h-4 w-4 shrink-0 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-lg md:text-2xl font-bold break-all" title={formatCurrency(stats.totalSales)}>
-              {formatCurrency(stats.totalSales)}
+          <CardContent className="p-3.5 sm:p-5 pt-0">
+            <div className="text-base sm:text-xl lg:text-2xl font-bold tracking-tight truncate" title={formatCurrency(stats.totalSales)}>
+              {formatCurrency(stats.totalSales, { compactDecimals: true })}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">
               Across {stats.invoiceCount} invoices
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Amount Received</CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-emerald-500" />
+
+        {/* 2. Amount Received */}
+        <Card className="p-0 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3.5 sm:p-5 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate pr-1">Amount Received</CardTitle>
+            <ArrowUpRight className="h-4 w-4 shrink-0 text-emerald-500" />
           </CardHeader>
-          <CardContent>
-            <div className="text-lg md:text-2xl font-bold text-emerald-600 dark:text-emerald-400 break-all" title={formatCurrency(stats.totalReceived)}>
-              {formatCurrency(stats.totalReceived)}
+          <CardContent className="p-3.5 sm:p-5 pt-0">
+            <div className="text-base sm:text-xl lg:text-2xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight truncate" title={formatCurrency(stats.totalReceived)}>
+              {formatCurrency(stats.totalReceived, { compactDecimals: true })}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Total collected payments
+            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">
+              Total collected
             </p>
           </CardContent>
         </Card>
+
+        {/* 3. Outstanding Balance */}
         <OutstandingBalanceCard totalOutstanding={stats.totalOutstanding} />
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+
+        {/* 4. Total Customers */}
+        <Card className="p-0 overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3.5 sm:p-5 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate pr-1">Total Customers</CardTitle>
+            <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-lg md:text-2xl font-bold break-all" title={stats.customersCount.toString()}>
+          <CardContent className="p-3.5 sm:p-5 pt-0">
+            <div className="text-base sm:text-xl lg:text-2xl font-bold tracking-tight truncate" title={stats.customersCount.toString()}>
               {stats.customersCount}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Registered in directory
+            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">
+              In directory
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mt-6 sm:mt-8">
+        {/* Recent Invoices Card */}
+        <Card className="overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-2 sm:pb-3">
             <div>
-              <CardTitle>Recent Invoices</CardTitle>
-              <CardDescription>Latest generated invoices.</CardDescription>
+              <CardTitle className="text-base sm:text-lg">Recent Invoices</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">Latest generated invoices.</CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild>
               <Link href="/invoices">View All</Link>
             </Button>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <Table className="min-w-[500px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {stats.recentInvoices.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground h-24">
-                      No recent invoices.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  stats.recentInvoices.map((inv) => (
-                    <TableRow key={inv.id}>
-                      <TableCell className="font-medium">
-                        <Link href={`/invoices/${inv.id}`} className="hover:underline text-primary">
+          <CardContent className="p-4 sm:p-6 pt-0">
+            {stats.recentInvoices.length === 0 ? (
+              <div className="text-center text-muted-foreground py-8 text-sm">
+                No recent invoices.
+              </div>
+            ) : (
+              <>
+                {/* Mobile View: Stacked touch items (Zero horizontal table scrolling) */}
+                <div className="md:hidden divide-y divide-border/60">
+                  {stats.recentInvoices.map((inv) => (
+                    <Link
+                      key={inv.id}
+                      href={`/invoices/${inv.id}`}
+                      className="flex items-center justify-between py-3 first:pt-0 last:pb-0 hover:bg-muted/40 transition-colors -mx-1 px-1 rounded-lg"
+                    >
+                      <div className="min-w-0 pr-3">
+                        <p className="font-semibold text-sm text-primary truncate">
                           {inv.invoice_number}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="truncate max-w-[150px]">{inv.customer_name}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(inv.grand_total)}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge className={getStatusColor(inv.payment_status)} variant="outline">
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          {inv.customer_name}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end shrink-0 gap-1">
+                        <span className="text-sm font-bold">
+                          {formatCurrency(inv.grand_total)}
+                        </span>
+                        <Badge className={`${getStatusColor(inv.payment_status)} text-[10px] px-1.5 py-0`} variant="outline">
                           {getStatusLabel(inv.payment_status)}
                         </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+
+                {/* Desktop View: Wide Table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Invoice #</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stats.recentInvoices.map((inv) => (
+                        <TableRow key={inv.id}>
+                          <TableCell className="font-medium">
+                            <Link href={`/invoices/${inv.id}`} className="hover:underline text-primary">
+                              {inv.invoice_number}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="truncate max-w-[150px]">{inv.customer_name}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(inv.grand_total)}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge className={getStatusColor(inv.payment_status)} variant="outline">
+                              {getStatusLabel(inv.payment_status)}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
-        {/* Placeholder for future charts or quick actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks to speed up your workflow.</CardDescription>
+        {/* Quick Actions Card */}
+        <Card className="overflow-hidden">
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-3">
+            <CardTitle className="text-base sm:text-lg">Quick Actions</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Common tasks to speed up your workflow.</CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4">
-            <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2" asChild>
+          <CardContent className="grid grid-cols-2 gap-2.5 sm:gap-4 p-4 sm:p-6 pt-0">
+            <Button
+              variant="outline"
+              className="h-20 sm:h-24 flex flex-col items-center justify-center gap-1.5 p-2 sm:p-4 text-center whitespace-normal rounded-xl hover:bg-accent/80 active:scale-[0.98]"
+              asChild
+            >
               <Link href="/customers">
-                <Users className="h-6 w-6 text-muted-foreground" />
-                <span>Add Customer</span>
+                <Users className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground shrink-0" />
+                <span className="text-xs sm:text-sm font-medium leading-tight">Add Customer</span>
               </Link>
             </Button>
-            <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2" asChild>
+            <Button
+              variant="outline"
+              className="h-20 sm:h-24 flex flex-col items-center justify-center gap-1.5 p-2 sm:p-4 text-center whitespace-normal rounded-xl hover:bg-accent/80 active:scale-[0.98]"
+              asChild
+            >
               <Link href="/bundles">
-                <FileText className="h-6 w-6 text-muted-foreground" />
-                <span>Manage Bundles</span>
+                <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground shrink-0" />
+                <span className="text-xs sm:text-sm font-medium leading-tight">Manage Bundles</span>
               </Link>
             </Button>
-            <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2 col-span-2" asChild>
+            <Button
+              variant="outline"
+              className="h-12 sm:h-14 flex items-center justify-center gap-2 p-2 sm:p-4 text-center col-span-2 rounded-xl bg-primary/5 hover:bg-primary/10 border-primary/20 active:scale-[0.98]"
+              asChild
+            >
               <Link href="/invoices/new">
-                <Plus className="h-6 w-6 text-primary" />
-                <span className="text-primary font-medium">Create New Invoice</span>
+                <Plus className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
+                <span className="text-xs sm:text-sm text-primary font-semibold">Create New Invoice</span>
               </Link>
             </Button>
           </CardContent>

@@ -8,6 +8,7 @@ import { WhatsAppShare } from "@/components/invoices/whatsapp-share";
 import { DownloadPdfButton } from "@/components/invoices/download-pdf-button";
 import { DeleteInvoiceButton } from "@/components/invoices/delete-invoice-button";
 import { CancelInvoiceButton } from "@/components/invoices/cancel-invoice-button";
+import { ConvertQuotationButton } from "@/components/invoices/convert-quotation-button";
 import { Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -28,13 +29,16 @@ export default async function InvoiceViewPage({
       settings = null;
     }
 
+    const docTitle = invoice.doc_type === 'quotation' ? 'Quotation' : invoice.doc_type === 'challan' ? 'Delivery Challan' : 'Invoice';
+
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 print:hidden">
           <PageHeader
-            title={`Invoice ${invoice.invoice_number}`}
+            title={`${docTitle} ${invoice.invoice_number}`}
           />
           <div className="flex flex-wrap items-center gap-2 shrink-0 -mt-4">
+            <ConvertQuotationButton id={invoice.id} docType={invoice.doc_type} />
             <PaymentActions invoice={invoice} />
             <Button variant="outline" size="icon" asChild title="Edit Invoice">
               <Link href={`/invoices/${invoice.id}/edit`}>

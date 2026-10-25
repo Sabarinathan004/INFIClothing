@@ -24,6 +24,8 @@ export interface CompanySettings {
 
 export type VerificationType = 'GST' | 'Aadhar' | 'PAN';
 export type CustomerLocation = 'Inside Tamil Nadu' | 'Outside Tamil Nadu';
+export type DocType = 'invoice' | 'quotation' | 'proforma' | 'challan';
+export type SettlementMode = 'credit' | 'cash' | 'upi' | 'bank_transfer';
 
 export interface Customer {
   id: string;
@@ -43,7 +45,12 @@ export interface Bundle {
   id: string;
   name: string;
   hsn_code: string | null;
+  unit?: string;
   default_price: number;
+  mrp?: number;
+  gst_rate?: number;
+  current_stock?: number;
+  low_stock_alert?: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -57,8 +64,14 @@ export interface InvoiceItem {
   invoice_id: string;
   bundle_name: string;
   hsn_code: string | null;
+  unit?: string;
   quantity: number;
   rate: number;
+  discount_percent?: number;
+  discount_amount?: number;
+  taxable_amount?: number;
+  gst_rate?: number;
+  gst_amount?: number;
   amount: number;
   sort_order: number;
   created_at: string;
@@ -67,6 +80,7 @@ export interface InvoiceItem {
 export interface Invoice {
   id: string;
   invoice_number: string;
+  doc_type?: DocType;
   invoice_date: string;
   customer_id: string | null;
 
@@ -85,12 +99,18 @@ export interface Invoice {
   // Location
   customer_location: CustomerLocation;
 
+  // Tax mode & discount
+  is_tax_inclusive?: boolean;
+  total_discount?: number;
+  extra_discount?: number;
+  round_off?: number;
+
   // GST totals
   subtotal: number;
   gst_rate: number;     // total rate (e.g. 5)
   gst_amount: number;   // total GST (cgst + sgst or igst)
 
-  // GST split (new columns)
+  // GST split
   cgst_rate: number;
   sgst_rate: number;
   igst_rate: number;
@@ -110,10 +130,12 @@ export interface Invoice {
   created_at: string;
   updated_at: string;
 
-  // Transport details
+  // Transport details & Logistics
   transport_mode: string | null;
   shipping_address: string | null;
   no_of_bundles: number | null;
+  vehicle_number?: string | null;
+  eway_bill_number?: string | null;
 
   // Joined
   items?: InvoiceItem[];
@@ -143,19 +165,31 @@ export interface CustomerFormData {
 export interface BundleFormData {
   name: string;
   hsn_code: string;
+  unit?: string;
   default_price: number;
+  mrp?: number;
+  gst_rate?: number;
+  current_stock?: number;
+  low_stock_alert?: number;
   is_active: boolean;
 }
 
 export interface InvoiceItemFormData {
   bundle_name: string;
-  hsn_code: string;
+  hsn_code?: string;
+  unit?: string;
   quantity: number;
   rate: number;
+  discount_percent?: number;
+  discount_amount?: number;
+  taxable_amount?: number;
+  gst_rate?: number;
+  gst_amount?: number;
   amount: number;
 }
 
 export interface InvoiceFormData {
+  doc_type?: DocType;
   invoice_date: string;
   customer_id: string | null;
   customer_name: string;
@@ -165,13 +199,19 @@ export interface InvoiceFormData {
   verification_type: VerificationType;
   verification_number: string;
   customer_location: CustomerLocation;
+  is_tax_inclusive?: boolean;
   items: InvoiceItemFormData[];
   gst_rate: number;
+  extra_discount?: number;
+  auto_round_off?: boolean;
+  settlement_mode?: SettlementMode;
   notes: string;
   status: InvoiceStatus;
   transport_mode: string;
   shipping_address: string;
   no_of_bundles: string | number;
+  vehicle_number?: string;
+  eway_bill_number?: string;
 }
 
 export interface PaymentFormData {
