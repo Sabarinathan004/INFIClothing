@@ -1,6 +1,7 @@
 "use client"
 
 import { formatCurrency, formatDate, formatDateTime, numberToWords } from "@/lib/utils";
+import { getPlaceOfSupply } from "@/lib/constants";
 import { useEffect, useState, useRef } from "react";
 import QRCode from "qrcode";
 import { TEMPLATES } from "./template-selector";
@@ -15,7 +16,7 @@ function UpiQrCode({ upiId, amount, name }: { upiId: string; amount?: number; na
     if (name) upiUrl += `&pn=${encodeURIComponent(name)}`;
     if (amount && amount > 0) upiUrl += `&am=${amount}`;
     upiUrl += `&cu=INR`;
-    QRCode.toCanvas(canvasRef.current, upiUrl, { width: 100, margin: 1 });
+    QRCode.toCanvas(canvasRef.current, upiUrl, { width: 90, margin: 1 });
   }, [upiId, amount, name]);
 
   if (!upiId) return null;
@@ -25,25 +26,26 @@ function UpiQrCode({ upiId, amount, name }: { upiId: string; amount?: number; na
 /* ─────────────────── Helper: GST summary rows ─────────────────── */
 function GstSummaryRows({ invoice }: { invoice: any }) {
   const location = invoice.customer_location;
+  const isIgst = location !== "Inside Tamil Nadu";
   const hasSplitData = invoice.cgst_rate != null || invoice.igst_rate != null;
 
   if (hasSplitData) {
-    if (location === "Inside Tamil Nadu") {
+    if (!isIgst) {
       return (
         <>
           <tr>
-            <td colSpan={5} className="border border-black px-2 py-1 text-right text-xs font-semibold">
+            <td colSpan={7} className="border border-black px-2 py-1 text-right text-xs font-semibold">
               CGST @ {invoice.cgst_rate ?? 2.5}%
             </td>
-            <td className="border border-black px-2 py-1 text-right text-xs">
+            <td className="border border-black px-2 py-1 text-right text-xs font-semibold">
               {formatCurrency(invoice.cgst_amount ?? 0)}
             </td>
           </tr>
           <tr>
-            <td colSpan={5} className="border border-black px-2 py-1 text-right text-xs font-semibold">
+            <td colSpan={7} className="border border-black px-2 py-1 text-right text-xs font-semibold">
               SGST @ {invoice.sgst_rate ?? 2.5}%
             </td>
-            <td className="border border-black px-2 py-1 text-right text-xs">
+            <td className="border border-black px-2 py-1 text-right text-xs font-semibold">
               {formatCurrency(invoice.sgst_amount ?? 0)}
             </td>
           </tr>
@@ -52,10 +54,10 @@ function GstSummaryRows({ invoice }: { invoice: any }) {
     } else {
       return (
         <tr>
-          <td colSpan={5} className="border border-black px-2 py-1 text-right text-xs font-semibold">
+          <td colSpan={7} className="border border-black px-2 py-1 text-right text-xs font-semibold">
             IGST @ {invoice.igst_rate ?? 5}%
           </td>
-          <td className="border border-black px-2 py-1 text-right text-xs">
+          <td className="border border-black px-2 py-1 text-right text-xs font-semibold">
             {formatCurrency(invoice.igst_amount ?? 0)}
           </td>
         </tr>
@@ -66,33 +68,14 @@ function GstSummaryRows({ invoice }: { invoice: any }) {
   // Legacy fallback
   return (
     <tr>
-      <td colSpan={5} className="border border-black px-2 py-1 text-right text-xs font-semibold">
+      <td colSpan={7} className="border border-black px-2 py-1 text-right text-xs font-semibold">
         GST @ {invoice.gst_rate}%
       </td>
-      <td className="border border-black px-2 py-1 text-right text-xs">
+      <td className="border border-black px-2 py-1 text-right text-xs font-semibold">
         {formatCurrency(invoice.gst_amount)}
       </td>
     </tr>
   );
-}
-
-/* ─────────────────── Helper: Verification display ─────────────────── */
-function getVerificationDisplay(invoice: any): string | null {
-  const type = invoice.verification_type;
-  const num = invoice.verification_number;
-  const legacyGst = invoice.customer_gst;
-
-  if (!type && !num) {
-    if (legacyGst) return `GSTIN: ${legacyGst}`;
-    return null;
-  }
-
-  const displayNum =
-    type === "Aadhar" && num && num.length === 12
-      ? `●●●● ●●●● ${num.slice(-4)}`
-      : num;
-
-  return `${type}: ${displayNum}`;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -107,7 +90,7 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
   }, []);
 
   /* ── Company settings ── */
-  const companyName = settings?.company_name || "Your Company";
+  const companyName = settings?.company_name || "INFI Clothing";
   const companyAddress = settings?.company_address || settings?.address || "";
   const companyPhone = settings?.phone_number || settings?.phone || "";
   const companyEmail = settings?.email || "";
@@ -120,22 +103,40 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
   const bankIfscCode = settings?.bank_ifsc_code || settings?.bank_ifsc || "";
   const bankAccountHolder = settings?.bank_account_holder || companyName;
   const bankBranch = settings?.bank_branch || "";
-  const cashInstructions = settings?.cash_instructions || "";
 
-  const verificationDisplay = getVerificationDisplay(invoice);
+  /* ── Customer / Bill To details ── */
+  const customerName = (invoice.legal_name || invoice.customer_name || "Customer Name").toUpperCase();
+  const customerCompany = (invoice.trade_name || "").toUpperCase();
+  const hasDistinctCompany = customerCompany && customerCompany !== customerName;
+
+  const gstin = (
+    invoice.verification_type === "GST"
+      ? invoice.verification_number
+      : (invoice.verification_number?.length === 15 ? invoice.verification_number : invoice.customer_gst)
+  )?.trim().toUpperCase() || (invoice.customer_gst || "");
+
+  const panNumber = (
+    invoice.pan_number ||
+    (gstin && gstin.length === 15 ? gstin.substring(2, 12) : null) ||
+    (invoice.verification_type === "PAN" ? invoice.verification_number : null)
+  )?.trim().toUpperCase();
+
+  const placeOfSupply =
+    invoice.place_of_supply ||
+    getPlaceOfSupply(gstin) ||
+    (invoice.customer_location === "Inside Tamil Nadu" ? "33-TAMIL NADU" : (invoice.customer_location || "33-TAMIL NADU"));
 
   /* Compute round-off */
   const roundOff = +(invoice.grand_total - Math.round(invoice.grand_total)).toFixed(2);
-  const netTotal = Math.round(invoice.grand_total);
 
   return (
-    <div className="bg-white text-black print:text-black max-w-4xl mx-auto print:max-w-none print:p-0 print:shadow-none print:border-0 shadow-sm border border-slate-200 rounded-xl overflow-hidden">
+    <div className="bg-white text-black print:text-black max-w-4xl mx-auto print:max-w-none print:p-0 print:shadow-none print:border-0 shadow-sm border border-slate-200 rounded-xl overflow-hidden leading-tight text-xs">
       {/* ═══════ Outermost table container ═══════ */}
       <table className="w-full border-collapse border border-black text-[11px] leading-snug" style={{ fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" }}>
         <tbody>
           {/* ─── Row 1: Header (Logo + Company + QR) ─── */}
           <tr>
-            <td colSpan={6} className="border border-black p-0">
+            <td colSpan={8} className="border border-black p-0">
               <table className="w-full border-collapse">
                 <tbody>
                   <tr>
@@ -156,7 +157,7 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
                       {companyGst && (
                         <div className="text-[10px] mt-0.5">
                           <span className="font-semibold">GSTIN:</span>{" "}
-                          <span className="uppercase">{companyGst}</span>
+                          <span className="uppercase font-mono">{companyGst}</span>
                         </div>
                       )}
                       {(companyPhone || companyEmail) && (
@@ -186,7 +187,7 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
 
           {/* ─── Row 2: TAX INVOICE title bar ─── */}
           <tr>
-            <td colSpan={6} className="border border-black text-center py-1.5 bg-gray-100">
+            <td colSpan={8} className="border border-black text-center py-1 bg-gray-100">
               <span className="text-sm font-extrabold tracking-[0.3em] uppercase">
                 {invoice.doc_type === 'quotation' 
                   ? 'Quotation' 
@@ -202,7 +203,7 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
 
           {/* ─── Row 3: Invoice metadata (No, Date, Location) ─── */}
           <tr>
-            <td colSpan={6} className="border border-black p-0">
+            <td colSpan={8} className="border border-black p-0">
               <table className="w-full border-collapse">
                 <tbody>
                   <tr>
@@ -213,9 +214,9 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
                     <td className="px-3 py-1.5 text-xs w-1/2 text-right">
                       <span className="font-semibold">Date & Time:</span>{" "}
                       <span className="font-bold">{formatDateTime(invoice.invoice_date, invoice.created_at)}</span>
-                      {invoice.customer_location && (
-                        <span className="ml-4 text-[10px] text-gray-500">
-                          ({invoice.customer_location})
+                      {placeOfSupply && (
+                        <span className="ml-3 font-semibold text-black">
+                          Place of Supply: <span className="font-bold">{placeOfSupply}</span>
                         </span>
                       )}
                     </td>
@@ -227,29 +228,40 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
 
           {/* ─── Row 4: Bill To + Shipped To ─── */}
           <tr>
-            <td colSpan={6} className="border border-black p-0">
+            <td colSpan={8} className="border border-black p-0">
               <table className="w-full border-collapse">
                 <tbody>
                   <tr>
                     {/* Bill To */}
                     <td className="border-r border-black p-3 align-top w-1/2">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Bill To</div>
-                      <div className="font-bold text-sm">{invoice.customer_name}</div>
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-1">Bill To</div>
+                      <div className="font-semibold text-sm uppercase text-black">{customerName}</div>
+                      {hasDistinctCompany && (
+                        <div className="text-xs font-bold text-black uppercase">{customerCompany}</div>
+                      )}
+                      {gstin && (
+                        <div className="text-xs font-bold mt-0.5">
+                          <span className="font-bold">GSTIN:</span> <span className="font-mono font-bold">{gstin}</span>
+                        </div>
+                      )}
+                      {panNumber && (
+                        <div className="text-xs font-bold mt-0.5">
+                          <span className="font-bold">PAN:</span> <span className="font-mono font-bold">{panNumber}</span>
+                        </div>
+                      )}
                       {invoice.customer_address && (
                         <div className="text-[10px] text-gray-700 whitespace-pre-wrap mt-0.5">{invoice.customer_address}</div>
-                      )}
-                      {verificationDisplay && (
-                        <div className="text-[10px] mt-0.5">
-                          <span className="uppercase font-medium">{verificationDisplay}</span>
-                        </div>
                       )}
                       {invoice.customer_mobile && (
                         <div className="text-[10px] text-gray-600 mt-0.5">Mob: {invoice.customer_mobile}</div>
                       )}
+                      <div className="text-[10px] font-semibold text-gray-800 mt-0.5">
+                        Place of Supply: <span className="font-bold">{placeOfSupply}</span>
+                      </div>
                     </td>
                     {/* Shipped To / Transport */}
                     <td className="p-3 align-top w-1/2">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-1">
                         {invoice.shipping_address ? "Shipped To" : "Transport Details"}
                       </div>
                       {invoice.shipping_address && (
@@ -287,42 +299,56 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
 
           {/* ─── Row 5: Items table header ─── */}
           <tr className="bg-gray-100">
-            <td className="border border-black px-2 py-1.5 text-center font-bold text-xs w-[40px]">S.No</td>
+            <td className="border border-black px-2 py-1.5 text-center font-bold text-xs w-[35px]">#</td>
             <td className="border border-black px-2 py-1.5 font-bold text-xs">Particulars</td>
-            <td className="border border-black px-2 py-1.5 text-center font-bold text-xs w-[80px]">HSN/SAC</td>
-            <td className="border border-black px-2 py-1.5 text-center font-bold text-xs w-[60px]">Qty</td>
-            <td className="border border-black px-2 py-1.5 text-right font-bold text-xs w-[90px]">Rate</td>
-            <td className="border border-black px-2 py-1.5 text-right font-bold text-xs w-[100px]">Amount</td>
+            <td className="border border-black px-2 py-1.5 text-center font-bold text-xs w-[70px]">HSN/SAC</td>
+            <td className="border border-black px-2 py-1.5 text-center font-bold text-xs w-[65px]">Qty</td>
+            <td className="border border-black px-2 py-1.5 text-right font-bold text-xs w-[75px]">Rate</td>
+            <td className="border border-black px-2 py-1.5 text-right font-bold text-xs w-[85px]">Taxable Value</td>
+            <td className="border border-black px-2 py-1.5 text-right font-bold text-xs w-[85px]">Tax Amount</td>
+            <td className="border border-black px-2 py-1.5 text-right font-bold text-xs w-[90px]">Amount</td>
           </tr>
 
           {/* ─── Item rows ─── */}
-          {invoice.items.map((item: any, index: number) => (
-            <tr key={item.id || index}>
-              <td className="border border-black px-2 py-1.5 text-center text-xs">{index + 1}</td>
-              <td className="border border-black px-2 py-1.5 text-xs font-medium">{item.bundle_name}</td>
-              <td className="border border-black px-2 py-1.5 text-center text-xs">{item.hsn_code || "—"}</td>
-              <td className="border border-black px-2 py-1.5 text-center text-xs">{item.quantity} {item.unit || ""}</td>
-              <td className="border border-black px-2 py-1.5 text-right text-xs">{formatCurrency(item.rate)}</td>
-              <td className="border border-black px-2 py-1.5 text-right text-xs">{formatCurrency(item.taxable_amount || item.amount)}</td>
-            </tr>
-          ))}
+          {invoice.items.map((item: any, index: number) => {
+            const itemGstRate = Number(item.gst_rate ?? invoice.gst_rate ?? 5);
+            const taxableVal = Number(item.taxable_amount ?? item.amount ?? (Number(item.quantity || 1) * Number(item.rate || 0)));
+            const taxAmt = Math.round(((taxableVal * itemGstRate) / 100) * 100) / 100;
+            const rowTotal = Math.round((taxableVal + taxAmt) * 100) / 100;
+            const unit = item.unit || "BDL";
 
-          {/* ─── Empty rows to fill space (minimum 5 visible rows) ─── */}
-          {Array.from({ length: Math.max(0, 5 - invoice.items.length) }).map((_, i) => (
+            return (
+              <tr key={item.id || index}>
+                <td className="border border-black px-2 py-1.5 text-center text-xs">{index + 1}</td>
+                <td className="border border-black px-2 py-1.5 text-xs font-semibold">{item.bundle_name}</td>
+                <td className="border border-black px-2 py-1.5 text-center text-xs">{item.hsn_code || "—"}</td>
+                <td className="border border-black px-2 py-1.5 text-center text-xs font-bold">{item.quantity} {unit}</td>
+                <td className="border border-black px-2 py-1.5 text-right text-xs">{formatCurrency(item.rate).replace('₹', '')}</td>
+                <td className="border border-black px-2 py-1.5 text-right text-xs font-medium">{formatCurrency(taxableVal).replace('₹', '')}</td>
+                <td className="border border-black px-2 py-1.5 text-right text-xs text-gray-700">{formatCurrency(taxAmt).replace('₹', '')} ({itemGstRate}%)</td>
+                <td className="border border-black px-2 py-1.5 text-right text-xs font-bold">{formatCurrency(rowTotal).replace('₹', '')}</td>
+              </tr>
+            );
+          })}
+
+          {/* ─── Empty rows to fill space (minimum 3 visible rows) ─── */}
+          {Array.from({ length: Math.max(0, 3 - invoice.items.length) }).map((_, i) => (
             <tr key={`empty-${i}`}>
-              <td className="border border-black px-2 py-1.5 text-xs">&nbsp;</td>
-              <td className="border border-black px-2 py-1.5 text-xs">&nbsp;</td>
-              <td className="border border-black px-2 py-1.5 text-xs">&nbsp;</td>
-              <td className="border border-black px-2 py-1.5 text-xs">&nbsp;</td>
-              <td className="border border-black px-2 py-1.5 text-xs">&nbsp;</td>
-              <td className="border border-black px-2 py-1.5 text-xs">&nbsp;</td>
+              <td className="border border-black px-2 py-1 text-xs">&nbsp;</td>
+              <td className="border border-black px-2 py-1 text-xs">&nbsp;</td>
+              <td className="border border-black px-2 py-1 text-xs">&nbsp;</td>
+              <td className="border border-black px-2 py-1 text-xs">&nbsp;</td>
+              <td className="border border-black px-2 py-1 text-xs">&nbsp;</td>
+              <td className="border border-black px-2 py-1 text-xs">&nbsp;</td>
+              <td className="border border-black px-2 py-1 text-xs">&nbsp;</td>
+              <td className="border border-black px-2 py-1 text-xs">&nbsp;</td>
             </tr>
           ))}
 
-          {/* ─── Subtotal ─── */}
+          {/* ─── Subtotal (Taxable Amount) ─── */}
           <tr className="bg-gray-50">
-            <td colSpan={5} className="border border-black px-2 py-1 text-right text-xs font-semibold">
-              Sub Total
+            <td colSpan={7} className="border border-black px-2 py-1 text-right text-xs font-semibold">
+              Taxable Amount
             </td>
             <td className="border border-black px-2 py-1 text-right text-xs font-semibold">
               {formatCurrency(invoice.subtotal + (Number(invoice.extra_discount) || 0))}
@@ -332,7 +358,7 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
           {/* ─── Extra Discount Row ─── */}
           {Number(invoice.extra_discount) > 0 && (
             <tr>
-              <td colSpan={5} className="border border-black px-2 py-1 text-right text-xs font-semibold text-emerald-700">
+              <td colSpan={7} className="border border-black px-2 py-1 text-right text-xs font-semibold text-emerald-700">
                 Discount
               </td>
               <td className="border border-black px-2 py-1 text-right text-xs text-emerald-700 font-semibold">
@@ -347,7 +373,7 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
           {/* ─── Round Off ─── */}
           {roundOff !== 0 && (
             <tr>
-              <td colSpan={5} className="border border-black px-2 py-1 text-right text-xs font-semibold">
+              <td colSpan={7} className="border border-black px-2 py-1 text-right text-xs font-semibold">
                 Round Off
               </td>
               <td className="border border-black px-2 py-1 text-right text-xs">
@@ -358,8 +384,8 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
 
           {/* ─── Net Total ─── */}
           <tr className="bg-gray-100">
-            <td colSpan={5} className="border border-black px-2 py-1.5 text-right text-sm font-extrabold">
-              Net Total
+            <td colSpan={7} className="border border-black px-2 py-1.5 text-right text-sm font-extrabold">
+              Total Amount
             </td>
             <td className="border border-black px-2 py-1.5 text-right text-sm font-extrabold">
               {formatCurrency(invoice.grand_total)}
@@ -368,39 +394,36 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
 
           {/* ─── Amount in Words ─── */}
           <tr>
-            <td colSpan={6} className="border border-black px-3 py-2">
+            <td colSpan={8} className="border border-black px-3 py-1.5">
               <span className="text-[10px] font-semibold">Amount in Words: </span>
-              <span className="text-[10px] italic">{numberToWords(invoice.grand_total)}</span>
+              <span className="text-[10px] italic font-medium">{numberToWords(invoice.grand_total)}</span>
             </td>
           </tr>
 
           {/* ─── Payment / Notes / Balance ─── */}
-          <tr>
-            <td colSpan={6} className="border border-black p-0">
+          <tr className="break-inside-avoid print:break-inside-avoid">
+            <td colSpan={8} className="border border-black p-0">
               <table className="w-full border-collapse">
                 <tbody>
                   <tr>
                     {/* Left: Payment Details & Notes */}
                     <td className="border-r border-black p-3 align-top w-1/2">
-                      {/* Payment & Bank Details */}
                       {(bankAccountNumber || bankName || bankIfscCode || upiId) && (
                         <div className="mb-2">
                           <div className="text-[9px] font-bold uppercase tracking-widest text-gray-500 mb-1">
-                            Payment Details
+                            Bank Details
                           </div>
                           
-                          {/* Bank Details */}
                           {(bankAccountNumber || bankName || bankIfscCode) && (
                             <div className="text-[10px] space-y-0.5 mb-1.5">
                               {bankAccountHolder && <div><span className="font-semibold">A/C Name:</span> {bankAccountHolder}</div>}
                               {bankName && <div><span className="font-semibold">Bank:</span> {bankName}</div>}
                               {bankAccountNumber && <div><span className="font-semibold">A/C No:</span> {bankAccountNumber}</div>}
-                              {bankIfscCode && <div><span className="font-semibold">IFSC:</span> <span className="uppercase">{bankIfscCode}</span></div>}
+                              {bankIfscCode && <div><span className="font-semibold">IFSC:</span> <span className="uppercase font-mono">{bankIfscCode}</span></div>}
                               {bankBranch && <div><span className="font-semibold">Branch:</span> {bankBranch}</div>}
                             </div>
                           )}
 
-                          {/* UPI Details */}
                           {upiId && (
                             <div className="text-[10px] mt-1 pt-1 border-t border-gray-200">
                               <span className="font-semibold">UPI ID:</span> {upiId}
@@ -444,17 +467,17 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
           </tr>
 
           {/* ─── Footer: Signature + Thank you ─── */}
-          <tr>
-            <td colSpan={6} className="border border-black p-0">
+          <tr className="break-inside-avoid print:break-inside-avoid">
+            <td colSpan={8} className="border border-black p-0">
               <table className="w-full border-collapse">
                 <tbody>
                   <tr>
-                    <td className="border-r border-black p-3 align-bottom w-1/2 h-20">
+                    <td className="border-r border-black p-2 align-bottom w-1/2 h-16">
                       <div className="text-[10px] text-gray-500 text-center">Customer Signature</div>
                     </td>
-                    <td className="p-3 align-bottom w-1/2 h-20 text-right">
+                    <td className="p-2 align-bottom w-1/2 h-16 text-right">
                       <div className="text-[10px] font-bold">For {companyName}</div>
-                      <div className="text-[10px] text-gray-500 mt-6">Authorised Signatory</div>
+                      <div className="text-[10px] text-gray-500 mt-4">Authorised Signatory</div>
                     </td>
                   </tr>
                 </tbody>
@@ -463,8 +486,8 @@ export function LegacyInvoiceTemplate({ invoice, settings }: { invoice: any; set
           </tr>
 
           {/* ─── Row: Thank you bar ─── */}
-          <tr>
-            <td colSpan={6} className="border border-black text-center py-1.5 bg-gray-50 text-[10px] text-gray-500">
+          <tr className="break-inside-avoid print:break-inside-avoid">
+            <td colSpan={8} className="border border-black text-center py-1 bg-gray-50 text-[10px] text-gray-500">
               Thank you for your business! This is a computer generated invoice.
             </td>
           </tr>

@@ -11,10 +11,12 @@ import { ErrorAlert } from "@/components/shared/error-alert";
 import { OutstandingBalanceCard } from "@/components/dashboard/outstanding-balance-card";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SupabaseHeartbeatPing } from "@/components/shared/supabase-heartbeat-ping";
 
 export default function DashboardPage() {
   return (
     <div className="space-y-6">
+      <SupabaseHeartbeatPing />
       <PageHeader
         title="Dashboard"
         description="Overview of your business performance."
@@ -40,12 +42,13 @@ function DashboardSkeleton() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[1, 2, 3, 4].map((i) => (
           <Card key={i} className="p-0 overflow-hidden">
-            <CardHeader className="p-3.5 sm:p-5 pb-1 sm:pb-2">
-              <Skeleton className="h-3.5 w-1/2" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3.5 sm:p-5 pb-1 sm:pb-2">
+              <Skeleton className="h-4 w-20 sm:w-24" />
+              <Skeleton className="h-8 w-8 rounded-lg" />
             </CardHeader>
             <CardContent className="p-3.5 sm:p-5 pt-0">
-              <Skeleton className="h-6 sm:h-8 w-3/4 mb-1" />
-              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-6 sm:h-8 w-3/4 mb-1.5" />
+              <Skeleton className="h-3.5 w-1/2" />
             </CardContent>
           </Card>
         ))}
@@ -67,55 +70,100 @@ async function DashboardContent() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* 1. Total Sales */}
-        <Card className="p-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3.5 sm:p-5 pb-1 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate pr-1">Total Sales</CardTitle>
-            <IndianRupee className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="p-3.5 sm:p-5 pt-0">
-            <div className="text-base sm:text-xl lg:text-2xl font-bold tracking-tight truncate" title={formatCurrency(stats.totalSales)}>
-              {formatCurrency(stats.totalSales, { compactDecimals: true })}
-            </div>
-            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">
-              Across {stats.invoiceCount} invoices
-            </p>
-          </CardContent>
-        </Card>
+        <Link
+          href="/invoices"
+          className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+        >
+          <Card className="p-0 overflow-hidden group hover:border-blue-500/50 hover:shadow-md transition-all duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3.5 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate pr-1">
+                Total Sales
+              </CardTitle>
+              <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 shrink-0 group-hover:scale-105 transition-transform">
+                <IndianRupee className="h-4 w-4" />
+              </div>
+            </CardHeader>
+            <CardContent className="p-3.5 sm:p-5 pt-0">
+              <div
+                className="text-base sm:text-xl lg:text-2xl font-bold tracking-tight truncate"
+                title={formatCurrency(stats.totalSales)}
+              >
+                {formatCurrency(stats.totalSales, { compactDecimals: true })}
+              </div>
+              <div className="flex items-center justify-between text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
+                <span className="truncate">Across {stats.invoiceCount} invoices</span>
+                <span className="text-blue-600 dark:text-blue-400 font-medium inline-flex items-center gap-0.5 shrink-0 ml-1 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all">
+                  &rarr;
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
 
         {/* 2. Amount Received */}
-        <Card className="p-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3.5 sm:p-5 pb-1 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate pr-1">Amount Received</CardTitle>
-            <ArrowUpRight className="h-4 w-4 shrink-0 text-emerald-500" />
-          </CardHeader>
-          <CardContent className="p-3.5 sm:p-5 pt-0">
-            <div className="text-base sm:text-xl lg:text-2xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight truncate" title={formatCurrency(stats.totalReceived)}>
-              {formatCurrency(stats.totalReceived, { compactDecimals: true })}
-            </div>
-            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">
-              Total collected
-            </p>
-          </CardContent>
-        </Card>
+        <Link
+          href="/invoices"
+          className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+        >
+          <Card className="p-0 overflow-hidden group hover:border-emerald-500/50 hover:shadow-md transition-all duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3.5 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate pr-1">
+                Amount Received
+              </CardTitle>
+              <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 shrink-0 group-hover:scale-105 transition-transform">
+                <ArrowUpRight className="h-4 w-4" />
+              </div>
+            </CardHeader>
+            <CardContent className="p-3.5 sm:p-5 pt-0">
+              <div
+                className="text-base sm:text-xl lg:text-2xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight truncate"
+                title={formatCurrency(stats.totalReceived)}
+              >
+                {formatCurrency(stats.totalReceived, { compactDecimals: true })}
+              </div>
+              <div className="flex items-center justify-between text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
+                <span className="truncate">Total collected</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium inline-flex items-center gap-0.5 shrink-0 ml-1 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all">
+                  &rarr;
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
 
         {/* 3. Outstanding Balance */}
         <OutstandingBalanceCard totalOutstanding={stats.totalOutstanding} />
 
         {/* 4. Total Customers */}
-        <Card className="p-0 overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3.5 sm:p-5 pb-1 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate pr-1">Total Customers</CardTitle>
-            <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="p-3.5 sm:p-5 pt-0">
-            <div className="text-base sm:text-xl lg:text-2xl font-bold tracking-tight truncate" title={stats.customersCount.toString()}>
-              {stats.customersCount}
-            </div>
-            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">
-              In directory
-            </p>
-          </CardContent>
-        </Card>
+        <Link
+          href="/customers"
+          className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+        >
+          <Card className="p-0 overflow-hidden group hover:border-violet-500/50 hover:shadow-md transition-all duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3.5 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate pr-1">
+                Total Customers
+              </CardTitle>
+              <div className="h-8 w-8 rounded-lg flex items-center justify-center bg-violet-500/10 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400 shrink-0 group-hover:scale-105 transition-transform">
+                <Users className="h-4 w-4" />
+              </div>
+            </CardHeader>
+            <CardContent className="p-3.5 sm:p-5 pt-0">
+              <div
+                className="text-base sm:text-xl lg:text-2xl font-bold tracking-tight truncate"
+                title={stats.customersCount.toString()}
+              >
+                {stats.customersCount}
+              </div>
+              <div className="flex items-center justify-between text-[11px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
+                <span className="truncate">In directory</span>
+                <span className="text-violet-600 dark:text-violet-400 font-medium inline-flex items-center gap-0.5 shrink-0 ml-1 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all">
+                  &rarr;
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mt-6 sm:mt-8">
@@ -149,9 +197,14 @@ async function DashboardContent() {
                         <p className="font-semibold text-sm text-primary truncate">
                           {inv.invoice_number}
                         </p>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
-                          {inv.customer_name}
+                        <p className="text-xs font-semibold text-foreground truncate mt-0.5">
+                          {(inv as any).legal_name || inv.customer_name}
                         </p>
+                        {(inv as any).trade_name && (inv as any).trade_name.toUpperCase() !== ((inv as any).legal_name || inv.customer_name).toUpperCase() && (
+                          <p className="text-[11px] font-bold text-foreground truncate uppercase">
+                            {(inv as any).trade_name}
+                          </p>
+                        )}
                       </div>
                       <div className="flex flex-col items-end shrink-0 gap-1">
                         <span className="text-sm font-bold">
@@ -184,7 +237,16 @@ async function DashboardContent() {
                               {inv.invoice_number}
                             </Link>
                           </TableCell>
-                          <TableCell className="truncate max-w-[150px]">{inv.customer_name}</TableCell>
+                          <TableCell className="max-w-[200px]">
+                            <div className="font-semibold text-foreground truncate">
+                              {(inv as any).legal_name || inv.customer_name}
+                            </div>
+                            {(inv as any).trade_name && (inv as any).trade_name.toUpperCase() !== ((inv as any).legal_name || inv.customer_name).toUpperCase() && (
+                              <div className="text-[11px] font-bold text-foreground truncate uppercase">
+                                {(inv as any).trade_name}
+                              </div>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">{formatCurrency(inv.grand_total)}</TableCell>
                           <TableCell className="text-center">
                             <Badge className={getStatusColor(inv.payment_status)} variant="outline">

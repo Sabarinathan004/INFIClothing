@@ -35,13 +35,17 @@ export function CustomerList({ initialCustomers }: CustomerListProps) {
 
   const router = useRouter();
 
-  // Simple client-side filtering for MVP speed
+  // Client-side filtering across Trade Name, Legal Name, Mobile, and GST/PAN
   const filteredCustomers = customers.filter(c => {
     const query = debouncedSearch.toLowerCase();
     return (
       c.name.toLowerCase().includes(query) ||
+      (c.trade_name && c.trade_name.toLowerCase().includes(query)) ||
+      (c.legal_name && c.legal_name.toLowerCase().includes(query)) ||
       (c.mobile && c.mobile.includes(query)) ||
-      (c.gst_number && c.gst_number.toLowerCase().includes(query))
+      (c.gst_number && c.gst_number.toLowerCase().includes(query)) ||
+      (c.verification_number && c.verification_number.toLowerCase().includes(query)) ||
+      (c.pan_number && c.pan_number.toLowerCase().includes(query))
     );
   });
 
@@ -89,9 +93,9 @@ export function CustomerList({ initialCustomers }: CustomerListProps) {
         <Table className="min-w-[700px]">
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
+              <TableHead>Customer / Company Name</TableHead>
               <TableHead>Mobile</TableHead>
-              <TableHead>GST Number</TableHead>
+              <TableHead>GST / PAN</TableHead>
               <TableHead>City/Address</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -104,14 +108,38 @@ export function CustomerList({ initialCustomers }: CustomerListProps) {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredCustomers.map((customer) => (
-                <TableRow key={customer.id}>
-                  <TableCell className="font-medium">{customer.name}</TableCell>
-                  <TableCell>{customer.mobile || "-"}</TableCell>
-                  <TableCell className="uppercase">{customer.gst_number || "-"}</TableCell>
-                  <TableCell className="truncate max-w-[200px]">
-                    {customer.address || "-"}
-                  </TableCell>
+              filteredCustomers.map((customer) => {
+                const customerName = customer.legal_name || customer.name;
+                const companyName = customer.trade_name;
+                const hasDistinctCompany = companyName && companyName.trim().toUpperCase() !== customerName.trim().toUpperCase();
+
+                return (
+                  <TableRow key={customer.id}>
+                    <TableCell className="font-medium">
+                      <div className="font-semibold text-foreground">{customerName}</div>
+                      {hasDistinctCompany && (
+                        <div className="text-xs text-indigo-600 dark:text-indigo-400 font-bold uppercase">
+                          Company: {companyName}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>{customer.mobile || "-"}</TableCell>
+                    <TableCell className="uppercase font-mono text-xs">
+                      <div className="font-bold">{customer.verification_number || customer.gst_number || "-"}</div>
+                      {customer.pan_number && (
+                        <div className="text-[11px] text-muted-foreground font-sans">
+                          PAN: <span className="font-mono font-bold">{customer.pan_number}</span>
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="truncate max-w-[200px]">
+                      <div>{customer.address || "-"}</div>
+                      {customer.place_of_supply && (
+                        <div className="text-[11px] text-muted-foreground font-semibold">
+                          {customer.place_of_supply}
+                        </div>
+                      )}
+                    </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="icon" asChild title="View Ledger">
@@ -128,8 +156,9 @@ export function CustomerList({ initialCustomers }: CustomerListProps) {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
+              );
+            })
+          )}
           </TableBody>
         </Table>
       </div>

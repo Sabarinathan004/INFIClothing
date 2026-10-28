@@ -11,7 +11,7 @@ export async function getDashboardStats() {
     supabase.from("customers").select("id", { count: "exact", head: true }),
     supabase
       .from("invoices")
-      .select("id, invoice_number, customer_name, grand_total, payment_status")
+      .select("id, invoice_number, customer_name, legal_name, trade_name, grand_total, payment_status")
       .order("created_at", { ascending: false })
       .limit(5)
   ]);
@@ -52,7 +52,7 @@ export async function getOutstandingInvoices() {
 
   const { data, error } = await supabase
     .from("invoices")
-    .select("id, invoice_number, customer_name, customer_mobile, grand_total, paid_amount, balance_amount, payment_status, invoice_date")
+    .select("id, invoice_number, customer_name, legal_name, trade_name, customer_mobile, grand_total, paid_amount, balance_amount, payment_status, invoice_date")
     .in("payment_status", ["unpaid", "partial"])
     .gt("balance_amount", 0)
     .order("balance_amount", { ascending: false });

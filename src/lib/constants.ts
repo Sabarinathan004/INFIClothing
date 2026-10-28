@@ -32,3 +32,77 @@ export const NAV_ITEMS = [
   { label: 'Product Store', href: '/bundles', icon: 'Package' },
   { label: 'Settings', href: '/settings', icon: 'Settings' },
 ] as const;
+
+/**
+ * Official Indian GST State Code Mapping (37 States & Union Territories)
+ */
+export const GST_STATE_CODES: Record<string, string> = {
+  '01': 'JAMMU AND KASHMIR',
+  '02': 'HIMACHAL PRADESH',
+  '03': 'PUNJAB',
+  '04': 'CHANDIGARH',
+  '05': 'UTTARAKHAND',
+  '06': 'HARYANA',
+  '07': 'DELHI',
+  '08': 'RAJASTHAN',
+  '09': 'UTTAR PRADESH',
+  '10': 'BIHAR',
+  '11': 'SIKKIM',
+  '12': 'ARUNACHAL PRADESH',
+  '13': 'NAGALAND',
+  '14': 'MANIPUR',
+  '15': 'MIZORAM',
+  '16': 'TRIPURA',
+  '17': 'MEGHALAYA',
+  '18': 'ASSAM',
+  '19': 'WEST BENGAL',
+  '20': 'JHARKHAND',
+  '21': 'ODISHA',
+  '22': 'CHATTISGARH',
+  '23': 'MADHYA PRADESH',
+  '24': 'GUJARAT',
+  '26': 'DADRA AND NAGAR HAVELI AND DAMAN AND DIU',
+  '27': 'MAHARASHTRA',
+  '28': 'ANDHRA PRADESH (OLD)',
+  '29': 'KARNATAKA',
+  '30': 'GOA',
+  '31': 'LAKSHADWEEP',
+  '32': 'KERALA',
+  '33': 'TAMIL NADU',
+  '34': 'PUDUCHERRY',
+  '35': 'ANDAMAN AND NICOBAR ISLANDS',
+  '36': 'TELANGANA',
+  '37': 'ANDHRA PRADESH',
+  '38': 'LADAKH',
+  '97': 'OTHER TERRITORY',
+  '99': 'CENTRE JURISDICTION',
+};
+
+/**
+ * Formats a GSTIN or 2-digit State Code into the official GST Place of Supply
+ * e.g. "29CELPR5680E1ZX" -> "29-KARNATAKA", "33" -> "33-TAMIL NADU"
+ */
+export function getPlaceOfSupply(gstinOrCode?: string | null): string {
+  if (!gstinOrCode) return '';
+  const clean = gstinOrCode.trim().toUpperCase();
+  if (/^\d{2}\s*-\s*[A-Z\s()]+$/.test(clean)) {
+    return clean;
+  }
+  const code = clean.length >= 2 ? clean.substring(0, 2) : '';
+  const stateName = GST_STATE_CODES[code];
+  if (stateName) {
+    return `${code}-${stateName}`;
+  }
+  return clean;
+}
+
+/**
+ * Derives whether the customer is Inside Tamil Nadu (CGST + SGST) or Outside Tamil Nadu (IGST)
+ */
+export function getLocationFromGstin(gstin?: string | null): 'Inside Tamil Nadu' | 'Outside Tamil Nadu' {
+  if (!gstin) return 'Inside Tamil Nadu';
+  const clean = gstin.trim().toUpperCase();
+  const code = clean.length >= 2 ? clean.substring(0, 2) : '';
+  return code === '33' ? 'Inside Tamil Nadu' : 'Outside Tamil Nadu';
+}
+

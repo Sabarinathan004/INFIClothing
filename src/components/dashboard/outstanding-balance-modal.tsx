@@ -13,6 +13,8 @@ interface OutstandingInvoice {
   id: string;
   invoice_number: string;
   customer_name: string;
+  legal_name?: string | null;
+  trade_name?: string | null;
   customer_mobile: string;
   grand_total: number;
   paid_amount: number;
@@ -57,6 +59,8 @@ export function OutstandingBalanceModal({ open, onOpenChange, totalOutstanding }
       invoices.filter(
         (inv) =>
           inv.customer_name.toLowerCase().includes(q) ||
+          (inv.legal_name || "").toLowerCase().includes(q) ||
+          (inv.trade_name || "").toLowerCase().includes(q) ||
           inv.invoice_number.toLowerCase().includes(q) ||
           (inv.customer_mobile || "").includes(q)
       )
@@ -140,8 +144,13 @@ export function OutstandingBalanceModal({ open, onOpenChange, totalOutstanding }
                     </span>
                     <div className="min-w-0">
                       <p className="font-semibold text-sm text-slate-900 dark:text-slate-100 truncate">
-                        {inv.customer_name}
+                        {inv.legal_name || inv.customer_name}
                       </p>
+                      {inv.trade_name && inv.trade_name.toUpperCase() !== (inv.legal_name || inv.customer_name).toUpperCase() && (
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400 font-bold truncate uppercase">
+                          {inv.trade_name}
+                        </p>
+                      )}
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                         <Link
                           href={`/invoices/${inv.id}`}

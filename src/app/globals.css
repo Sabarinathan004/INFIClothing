@@ -125,7 +125,7 @@
     --accent: 240 3.7% 15.9%;
     --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 240 5% 38%;
@@ -205,16 +205,19 @@
 /* ===== Print Styles for Invoice ===== */
 @media print {
   /* Hide everything except the invoice */
-  body {
+  html, body {
     background: white !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* Reset page margins for tight fit */
+  /* Reset page margins to 6mm for tight single-page fit */
   @page {
-    margin: 8mm;
     size: A4;
+    margin: 6mm;
   }
 
   /* Hide navigation, sidebar, header, action buttons */
@@ -235,6 +238,15 @@
   .rounded-xl {
     box-shadow: none !important;
     border-radius: 0 !important;
+  }
+
+  /* Break inside avoid for totals, bank/UPI, signatures, and terms */
+  .break-inside-avoid,
+  .print\:break-inside-avoid,
+  tr,
+  table tfoot {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 }
 

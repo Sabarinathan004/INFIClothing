@@ -40,11 +40,16 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
     control,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<CustomerSchemaType>({
     resolver: zodResolver(customerSchema) as any,
     defaultValues: {
       name: customer?.name || "",
+      trade_name: customer?.trade_name || customer?.name || "",
+      legal_name: customer?.legal_name || customer?.name || "",
+      pan_number: customer?.pan_number || "",
+      place_of_supply: customer?.place_of_supply || "",
       mobile: customer?.mobile || "",
       email: customer?.email || "",
       address: customer?.address || "",
@@ -77,15 +82,31 @@ export function CustomerForm({ customer, onSuccess, onCancel }: CustomerFormProp
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Business / Customer Name <span className="text-destructive">*</span></Label>
-        <Input
-          id="name"
-          placeholder="Raj Textiles"
-          {...register("name")}
-          disabled={isLoading}
-        />
-        {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">Customer Name <span className="text-destructive">*</span></Label>
+          <Input
+            id="name"
+            placeholder=""
+            {...register("name")}
+            onChange={(e) => {
+              register("name").onChange(e);
+              setValue("legal_name", e.target.value);
+            }}
+            disabled={isLoading}
+          />
+          {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="trade_name">Company Name</Label>
+          <Input
+            id="trade_name"
+            placeholder=""
+            {...register("trade_name")}
+            disabled={isLoading}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { fetchAndVerifyGST } from "@/actions/customer-actions";
 import { searchCustomers } from "@/actions/customers";
+import { getPlaceOfSupply } from "@/lib/constants";
 import { toast } from "sonner";
 import {
   CheckCircle2,
@@ -121,6 +122,10 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
         applyCustomerRecord({
           id: result.data.id,
           name: result.data.name,
+          trade_name: result.data.trade_name || result.data.name,
+          legal_name: result.data.legal_name || result.data.name,
+          pan_number: result.data.pan_number || (cleanGst.length >= 12 ? cleanGst.substring(2, 12) : null),
+          place_of_supply: result.data.place_of_supply || getPlaceOfSupply(cleanGst),
           address: result.data.address,
           mobile: result.data.mobile || "",
           email: result.data.email || "",
@@ -130,7 +135,7 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
           created_at: "",
           updated_at: "",
         });
-        toast.success(`GSTIN Verified: ${result.data.name}`);
+        toast.success(`GSTIN Verified: ${result.data.trade_name || result.data.name}`);
       } else {
         toast.error(result.error || "Invalid GSTIN");
       }
@@ -142,8 +147,19 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
   };
 
   const applyCustomerRecord = (customer: Customer) => {
+    const customerLegal = (customer.legal_name || customer.name || "").trim();
+    const companyTrade = (customer.trade_name || "").trim();
+    const cleanGst = (customer.verification_number || customer.gst_number || "").trim().toUpperCase();
+    const panNumber = customer.pan_number || (cleanGst.length >= 12 ? cleanGst.substring(2, 12) : "");
+    const placeOfSupply = customer.place_of_supply || (cleanGst ? getPlaceOfSupply(cleanGst) : "");
+
     setValue("customer_id", customer.id || null, { shouldValidate: true });
-    setValue("customer_name", customer.name, { shouldValidate: true });
+    // Customer name binds to legal name for GST customer; company name binds to trade name
+    setValue("customer_name", customerLegal || companyTrade || customer.name, { shouldValidate: true });
+    setValue("legal_name", customerLegal as any, { shouldValidate: true });
+    setValue("trade_name", companyTrade as any, { shouldValidate: true });
+    setValue("pan_number", panNumber as any, { shouldValidate: true });
+    setValue("place_of_supply", placeOfSupply as any, { shouldValidate: true });
     setValue("customer_address", customer.address || "", { shouldValidate: true });
     setValue("customer_mobile", customer.mobile || "", { shouldValidate: true });
     setValue("customer_email", customer.email || "", { shouldValidate: true });
@@ -163,6 +179,7 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
       } else {
         setValue("customer_location", "Outside Tamil Nadu", { shouldValidate: true });
       }
+      setValue("place_of_supply", getPlaceOfSupply(vNum) as any, { shouldValidate: true });
     }
 
     setIsLocked(true);
@@ -173,6 +190,10 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
   const handleInstantWalkIn = () => {
     setValue("customer_id", null, { shouldValidate: true });
     setValue("customer_name", "Cash / Walk-in Customer", { shouldValidate: true });
+    setValue("trade_name", "Cash / Walk-in Customer" as any, { shouldValidate: true });
+    setValue("legal_name", "Cash / Walk-in Customer" as any, { shouldValidate: true });
+    setValue("pan_number", "" as any, { shouldValidate: true });
+    setValue("place_of_supply", "33-TAMIL NADU" as any, { shouldValidate: true });
     setValue("customer_mobile", "", { shouldValidate: true });
     setValue("customer_email", "", { shouldValidate: true });
     setValue("customer_address", "", { shouldValidate: true });
@@ -192,6 +213,10 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
   const handleClear = () => {
     setValue("customer_id", null);
     setValue("customer_name", "");
+    setValue("trade_name", "" as any);
+    setValue("legal_name", "" as any);
+    setValue("pan_number", "" as any);
+    setValue("place_of_supply", "" as any);
     setValue("customer_mobile", "");
     setValue("customer_email", "");
     setValue("customer_address", "");
@@ -204,16 +229,22 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
   };
 
   // Locked Party Summary Card
-  if (isLocked && customerName) {
+  if (isLocked && (customerName || watch("legal_name") || watch("trade_name"))) {
+    const customerLegal = (watch("legal_name") || customerName || "").trim();
+    const companyTrade = (watch("trade_name") || "").trim();
+    const displayCustomer = customerLegal || companyTrade || customerName;
+    const displayCompany = companyTrade && companyTrade.toUpperCase() !== displayCustomer.toUpperCase() ? companyTrade : "";
+
     return (
       <Card className="border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 shadow-2xs">
         <CardContent className="p-3.5 sm:p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1 min-w-0">
+              {/* 1. Customer Name (Legal Name) + Verification Badge */}
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="font-bold text-base text-foreground truncate">
-                  {customerName}
+                <span className="font-semibold text-base text-foreground truncate uppercase">
+                  {displayCustomer}
                 </span>
                 {verificationType && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
@@ -223,7 +254,16 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {/* 2. Company Name (Trade Name) */}
+              {displayCompany && (
+                <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-foreground">
+                  <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span className="uppercase">{displayCompany}</span>
+                </div>
+              )}
+
+              {/* 3. Address & Phone & GSTIN */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground pt-0.5">
                 {customerMobile ? (
                   <span className="flex items-center gap-1 font-medium text-foreground">
                     <Phone className="w-3 h-3 text-primary" /> {customerMobile}
@@ -238,12 +278,12 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
                   </button>
                 )}
                 {verificationNumber && (
-                  <span className="font-mono font-semibold">
+                  <span className="font-mono font-bold text-foreground">
                     {verificationType}: {verificationNumber}
                   </span>
                 )}
                 {customerAddress && (
-                  <span className="flex items-center gap-1 truncate max-w-xs">
+                  <span className="flex items-center gap-1 text-muted-foreground">
                     <MapPin className="w-3 h-3 shrink-0" /> {customerAddress}
                   </span>
                 )}
@@ -323,26 +363,37 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
           {/* Autocomplete Dropdown */}
           {showResultsDropdown && searchResults.length > 0 && (
             <div className="absolute left-0 right-0 top-11 z-50 rounded-xl border bg-popover shadow-xl max-h-60 overflow-y-auto p-1.5 space-y-1">
-              {searchResults.map((cust) => (
-                <button
-                  key={cust.id}
-                  type="button"
-                  onClick={() => applyCustomerRecord(cust)}
-                  className="w-full text-left p-2.5 rounded-lg hover:bg-accent flex items-start justify-between gap-2 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="font-bold text-sm text-foreground truncate">{cust.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {cust.mobile || "No phone"} {cust.verification_number ? `• ${cust.verification_number}` : ""}
-                    </p>
-                  </div>
-                  {cust.verification_type && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0">
-                      {cust.verification_type}
-                    </span>
-                  )}
-                </button>
-              ))}
+              {searchResults.map((cust) => {
+                const cCustomer = (cust.legal_name || cust.name || "").trim();
+                const cCompany = (cust.trade_name || "").trim();
+                const diffCompany = cCompany && cCompany.toUpperCase() !== cCustomer.toUpperCase();
+
+                return (
+                  <button
+                    key={cust.id}
+                    type="button"
+                    onClick={() => applyCustomerRecord(cust)}
+                    className="w-full text-left p-2.5 rounded-lg hover:bg-accent flex items-start justify-between gap-2 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm text-foreground truncate">{cCustomer || cCompany}</p>
+                      {diffCompany && (
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400 truncate flex items-center gap-1 font-medium">
+                          <Building2 className="w-3 h-3 shrink-0" /> {cCompany}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground truncate">
+                        {cust.mobile || "No phone"} {cust.verification_number ? `• ${cust.verification_number}` : ""} {cust.address ? `• ${cust.address}` : ""}
+                      </p>
+                    </div>
+                    {cust.verification_type && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0">
+                        {cust.verification_type}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -350,10 +401,14 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
         {/* Quick Manual Entry Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <div className="space-y-1">
-            <Label className="text-xs font-semibold">Customer Name *</Label>
+            <Label className="text-xs font-semibold">Customer Name <span className="text-destructive">*</span></Label>
             <Input
               {...register("customer_name")}
-              placeholder="e.g. Sri Balaji Textiles"
+              onChange={(e) => {
+                register("customer_name").onChange(e);
+                setValue("legal_name", e.target.value as any);
+              }}
+              placeholder=""
               disabled={isLoading}
               className={errors.customer_name ? "border-destructive ring-1 ring-destructive" : ""}
             />
@@ -363,11 +418,36 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
           </div>
 
           <div className="space-y-1">
+            <Label className="text-xs font-semibold">Company Name</Label>
+            <Input
+              {...register("trade_name" as any)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setValue("trade_name", val as any);
+                if (!watch("customer_name")) {
+                  setValue("customer_name", val);
+                }
+              }}
+              placeholder=""
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="space-y-1">
             <Label className="text-xs font-semibold">Mobile Number</Label>
             <Input
               {...register("customer_mobile")}
               placeholder="10-digit mobile"
               type="tel"
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Address</Label>
+            <Input
+              {...register("customer_address")}
+              placeholder="Street, City, Pincode"
               disabled={isLoading}
             />
           </div>
@@ -381,7 +461,7 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
             className="flex items-center gap-1.5 text-xs font-bold text-primary hover:underline py-1"
           >
             {showDetailsCollapse ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            {showDetailsCollapse ? "Hide GST & Address Details" : "+ Add GST / PAN / Address"}
+            {showDetailsCollapse ? "Hide Verification Details" : "+ Add GST / PAN / Verification"}
           </button>
 
           {showDetailsCollapse && (
@@ -480,15 +560,6 @@ export function CustomerSelector({ form, isLoading }: CustomerSelectorProps) {
                   )}
                 </div>
               )}
-
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Billing Address</Label>
-                <Input
-                  {...register("customer_address")}
-                  placeholder="Street, City, Pincode"
-                  disabled={isLoading}
-                />
-              </div>
             </div>
           )}
         </div>

@@ -60,6 +60,8 @@ export function InvoiceList({ initialInvoices }: InvoiceListProps) {
     const matchesSearch =
       inv.invoice_number.toLowerCase().includes(query) ||
       inv.customer_name.toLowerCase().includes(query) ||
+      Boolean(inv.trade_name && inv.trade_name.toLowerCase().includes(query)) ||
+      Boolean(inv.legal_name && inv.legal_name.toLowerCase().includes(query)) ||
       Boolean(inv.customer_mobile && inv.customer_mobile.includes(query));
 
     let matchesDate = true;
@@ -270,7 +272,14 @@ export function InvoiceList({ initialInvoices }: InvoiceListProps) {
                 {/* Customer Details & Totals */}
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <div className="min-w-0">
-                    <p className="font-semibold text-foreground truncate">{invoice.customer_name}</p>
+                    <p className="font-semibold text-foreground truncate">
+                      {invoice.legal_name || invoice.customer_name}
+                    </p>
+                    {invoice.trade_name && invoice.trade_name.toUpperCase() !== (invoice.legal_name || invoice.customer_name).toUpperCase() && (
+                      <p className="text-[11px] font-bold text-foreground truncate uppercase">
+                        {invoice.trade_name}
+                      </p>
+                    )}
                     {invoice.customer_mobile && (
                       <a
                         href={`tel:${invoice.customer_mobile}`}
@@ -383,7 +392,10 @@ export function InvoiceList({ initialInvoices }: InvoiceListProps) {
                   <TableCell>{formatDate(invoice.invoice_date)}</TableCell>
                   <TableCell>
                     <div>
-                      <div className="font-medium">{invoice.customer_name}</div>
+                      <div className="font-semibold text-foreground">{invoice.legal_name || invoice.customer_name}</div>
+                      {invoice.trade_name && invoice.trade_name.toUpperCase() !== (invoice.legal_name || invoice.customer_name).toUpperCase() && (
+                        <div className="text-xs font-bold text-foreground uppercase">{invoice.trade_name}</div>
+                      )}
                       {invoice.customer_mobile && (
                         <div className="text-xs text-muted-foreground">{invoice.customer_mobile}</div>
                       )}

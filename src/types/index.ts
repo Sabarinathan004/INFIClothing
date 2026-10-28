@@ -30,6 +30,10 @@ export type SettlementMode = 'credit' | 'cash' | 'upi' | 'bank_transfer';
 export interface Customer {
   id: string;
   name: string;
+  trade_name?: string | null;
+  legal_name?: string | null;
+  pan_number?: string | null;
+  place_of_supply?: string | null;
   mobile: string;
   email: string;
   /** @deprecated Use verification_type + verification_number instead */
@@ -86,6 +90,10 @@ export interface Invoice {
 
   // Customer snapshot (frozen at invoice creation)
   customer_name: string;
+  trade_name?: string | null;
+  legal_name?: string | null;
+  pan_number?: string | null;
+  place_of_supply?: string | null;
   customer_mobile: string;
   customer_email: string;
   /** @deprecated Use verification_type + verification_number instead */
@@ -155,6 +163,10 @@ export interface Payment {
 // Form types (without id/timestamps)
 export interface CustomerFormData {
   name: string;
+  trade_name?: string;
+  legal_name?: string;
+  pan_number?: string;
+  place_of_supply?: string;
   mobile: string;
   email: string;
   verification_type: VerificationType;
@@ -193,6 +205,10 @@ export interface InvoiceFormData {
   invoice_date: string;
   customer_id: string | null;
   customer_name: string;
+  trade_name?: string;
+  legal_name?: string;
+  pan_number?: string;
+  place_of_supply?: string;
   customer_mobile: string;
   customer_email: string;
   customer_address: string;

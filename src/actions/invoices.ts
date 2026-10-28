@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { InvoiceSchemaType } from "@/schemas/invoice";
+import { getPlaceOfSupply } from "@/lib/constants";
 import { revalidatePath } from "next/cache";
 
 export async function getInvoicesByCustomer(customerId: string) {
@@ -120,25 +121,42 @@ async function resolveCustomer(supabase: any, data: InvoiceSchemaType) {
 
   // Create a new customer record from the invoice snapshot
   if (data.customer_name?.trim()) {
+    const cleanNum = data.verification_number?.trim().toUpperCase() || null;
+    const derivedPan = data.pan_number || (data.verification_type === 'PAN' ? cleanNum : (data.verification_type === 'GST' && cleanNum && cleanNum.length >= 12 ? cleanNum.substring(2, 12) : null));
+    const derivedPos = data.place_of_supply || (data.verification_type === 'GST' && cleanNum ? getPlaceOfSupply(cleanNum) : (data.customer_location === 'Inside Tamil Nadu' ? '33-TAMIL NADU' : null));
+
+    const newCustomerPayload: any = {
+      name: data.customer_name.trim(),
+      trade_name: (data.trade_name || data.customer_name).trim(),
+      legal_name: (data.legal_name || data.customer_name).trim(),
+      pan_number: derivedPan,
+      place_of_supply: derivedPos,
+      mobile: data.customer_mobile?.trim() || null,
+      email: data.customer_email?.trim() || null,
+      address: data.customer_address?.trim() || null,
+      verification_type: data.verification_type || null,
+      verification_number: cleanNum,
+      gst_number: data.verification_type === 'GST' ? cleanNum : null,
+    };
+
     const { data: newCustomer, error: newCustomerError } = await supabase
       .from("customers")
-      .insert([{
-        name: data.customer_name.trim(),
-        mobile: data.customer_mobile?.trim() || null,
-        email: data.customer_email?.trim() || null,
-        address: data.customer_address?.trim() || null,
-        verification_type: data.verification_type || null,
-        verification_number: data.verification_number?.trim().toUpperCase() || null,
-        gst_number: data.verification_type === 'GST'
-          ? data.verification_number?.trim().toUpperCase() || null
-          : null,
-      }])
+      .insert([newCustomerPayload])
       .select()
       .single();
 
     if (!newCustomerError && newCustomer) {
       return newCustomer.id;
     }
+
+    // Fallback retry
+    const legacyCustomer = { ...newCustomerPayload };
+    delete legacyCustomer.trade_name;
+    delete legacyCustomer.legal_name;
+    delete legacyCustomer.pan_number;
+    delete legacyCustomer.place_of_supply;
+    const retry = await supabase.from("customers").insert([legacyCustomer]).select().single();
+    if (retry.data) return retry.data.id;
   }
 
   return null;
@@ -205,19 +223,27 @@ export async function createInvoice(data: InvoiceSchemaType) {
   const balanceAmount = isInstantPaid ? 0 : grandTotal;
   const paymentStatus = data.status === "draft" ? "draft" : isInstantPaid ? "paid" : "unpaid";
 
+  const cleanNum = data.verification_number?.trim().toUpperCase() || null;
+  const derivedPan = data.pan_number || (data.verification_type === 'PAN' ? cleanNum : (data.verification_type === 'GST' && cleanNum && cleanNum.length >= 12 ? cleanNum.substring(2, 12) : null));
+  const derivedPos = data.place_of_supply || (data.verification_type === 'GST' && cleanNum ? getPlaceOfSupply(cleanNum) : (data.customer_location === 'Inside Tamil Nadu' ? '33-TAMIL NADU' : ''));
+
   const invoicePayload: any = {
     doc_type: data.doc_type || "invoice",
     invoice_number: numData,
     invoice_date: data.invoice_date,
     customer_id: data.customer_id,
     customer_name: data.customer_name,
+    trade_name: data.trade_name || data.customer_name,
+    legal_name: data.legal_name || data.customer_name,
+    pan_number: derivedPan,
+    place_of_supply: derivedPos,
     customer_mobile: data.customer_mobile,
     customer_email: data.customer_email,
     customer_address: data.customer_address,
     customer_gst:
-      data.verification_type === "GST" ? data.verification_number?.trim().toUpperCase() || "" : "",
+      data.verification_type === "GST" ? cleanNum || "" : "",
     verification_type: data.verification_type || null,
-    verification_number: data.verification_number?.trim().toUpperCase() || null,
+    verification_number: cleanNum,
     customer_location: data.customer_location,
     is_tax_inclusive: Boolean(data.is_tax_inclusive),
     subtotal,
@@ -260,6 +286,10 @@ export async function createInvoice(data: InvoiceSchemaType) {
     delete legacyPayload.round_off;
     delete legacyPayload.vehicle_number;
     delete legacyPayload.eway_bill_number;
+    delete legacyPayload.trade_name;
+    delete legacyPayload.legal_name;
+    delete legacyPayload.pan_number;
+    delete legacyPayload.place_of_supply;
 
     const retry = await supabase.from("invoices").insert([legacyPayload]).select().single();
     if (retry.error) {
@@ -363,6 +393,10 @@ export async function duplicateInvoice(id: string) {
     invoice_date: new Date().toISOString().split("T")[0],
     customer_id: invoice.customer_id,
     customer_name: invoice.customer_name,
+    trade_name: invoice.trade_name || invoice.customer_name,
+    legal_name: invoice.legal_name || invoice.customer_name,
+    pan_number: invoice.pan_number || "",
+    place_of_supply: invoice.place_of_supply || "",
     customer_mobile: invoice.customer_mobile,
     customer_email: invoice.customer_email,
     customer_address: invoice.customer_address,
@@ -422,17 +456,25 @@ export async function updateInvoice(id: string, data: InvoiceSchemaType) {
 
   const invoiceStatus = data.status === "draft" ? "draft" : "created";
 
+  const cleanNum = data.verification_number?.trim().toUpperCase() || null;
+  const derivedPan = data.pan_number || (data.verification_type === 'PAN' ? cleanNum : (data.verification_type === 'GST' && cleanNum && cleanNum.length >= 12 ? cleanNum.substring(2, 12) : null));
+  const derivedPos = data.place_of_supply || (data.verification_type === 'GST' && cleanNum ? getPlaceOfSupply(cleanNum) : (data.customer_location === 'Inside Tamil Nadu' ? '33-TAMIL NADU' : ''));
+
   const updatePayload: any = {
     invoice_date: data.invoice_date,
     customer_id: data.customer_id,
     customer_name: data.customer_name,
+    trade_name: data.trade_name || data.customer_name,
+    legal_name: data.legal_name || data.customer_name,
+    pan_number: derivedPan,
+    place_of_supply: derivedPos,
     customer_mobile: data.customer_mobile,
     customer_email: data.customer_email,
     customer_address: data.customer_address,
     customer_gst:
-      data.verification_type === "GST" ? data.verification_number?.trim().toUpperCase() || "" : "",
+      data.verification_type === "GST" ? cleanNum || "" : "",
     verification_type: data.verification_type || null,
-    verification_number: data.verification_number?.trim().toUpperCase() || null,
+    verification_number: cleanNum,
     customer_location: data.customer_location,
     subtotal,
     extra_discount: extraDiscount,
@@ -469,6 +511,10 @@ export async function updateInvoice(id: string, data: InvoiceSchemaType) {
     delete legacyPayload.round_off;
     delete legacyPayload.vehicle_number;
     delete legacyPayload.eway_bill_number;
+    delete legacyPayload.trade_name;
+    delete legacyPayload.legal_name;
+    delete legacyPayload.pan_number;
+    delete legacyPayload.place_of_supply;
     const retry = await supabase.from("invoices").update(legacyPayload).eq("id", id);
     if (retry.error) throw new Error(retry.error.message);
   }
